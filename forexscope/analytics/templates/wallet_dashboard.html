@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Equity Dashboard</title>
+    <style>
+        .container { max-width: 600px; margin: 50px auto; font-family: sans-serif; }
+        .card { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        .form-group { margin: 10px 0; }
+        .btn { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-transfer { background: #28a745; }
+        .messages { list-style: none; padding: 0; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Financial Dashboard</h2>
+
+    <!-- Display Django Messages (Errors or Success) -->
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <div class="card">
+        <h3>Company Vault</h3>
+        {% if vault %}
+            <p><strong>Available Balance:</strong> ${{ vault.vault_equity_value }}</p>
+            <form action="{% url 'add_equity' vault.id %}" method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <input type="number" name="amount" step="0.01" min="0.01" placeholder="Amount to add" required>
+                    <button type="submit" class="btn">Add Funds</button>
+                </div>
+            </form>
+        {% else %}
+            <p>No vault found for your account.</p>
+            <form action="{% url 'create_wallet_resource' 'vault' %}" method="POST">
+                {% csrf_token %}
+                <button type="submit" class="btn">Create Vault</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Trading Pool</h3>
+        {% if pool %}
+            <p><strong>Allocated Balance:</strong> ${{ pool.trading_pool_value }}</p>
+            {% if vault %}
+                <form action="{% url 'transfer_to_pool' vault.id %}" method="POST">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <input type="number" name="amount" step="0.01" min="0.01" placeholder="Amount to transfer" required>
+                        <button type="submit" class="btn btn-transfer">Transfer to Trading Pool</button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="error">Create a vault to transfer funds to the trading pool.</p>
+            {% endif %}
+        {% else %}
+            <p>No trading pool found for your account.</p>
+            <form action="{% url 'create_wallet_resource' 'trading-pool' %}" method="POST">
+                {% csrf_token %}
+                <button type="submit" class="btn">Create Trading Pool</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {% if pool %}
+        <div class="card">
+            <h3>Log Completed Trade Profit</h3>
+            <form action="{% url 'record_profit_trade' pool.id %}" method="POST">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label>Utility Traded:</label>
+                    <select name="utility_traded" required>
+                        <option value="XAU/USD">Gold (XAU/USD)</option>
+                        <option value="VOL">Volatility Index</option>
+                        <option value="UNKNOWN">Unknown</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Direction:</label>
+                    <select name="trade_direction" required>
+                        <option value="BUY">Buy</option>
+                        <option value="SELL">Sell</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Profit Amount ($):</label>
+                    <input type="number" name="profit_value" step="0.01" min="0.01" placeholder="0.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes / Description:</label>
+                    <input type="text" name="description" placeholder="Optional trade details">
+                </div>
+
+                <button type="submit" class="btn">Submit Profit</button>
+            </form>
+        </div>
+
+        <div class="card" style="border-color: #dc3545;">
+            <h3 style="color: #dc3545;">Log Completed Trade Loss</h3>
+            <form action="{% url 'record_loss_trade' pool.id %}" method="POST">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label>Utility Traded:</label>
+                    <select name="utility_traded" required>
+                        <option value="XAU/USD">Gold (XAU/USD)</option>
+                        <option value="VOL">Volatility Index</option>
+                        <option value="UNKNOWN">Unknown</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Direction:</label>
+                    <select name="trade_direction" required>
+                        <option value="BUY">Buy</option>
+                        <option value="SELL">Sell</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Loss Amount ($):</label>
+                    <input type="number" name="loss_value" step="0.01" min="0.01" placeholder="0.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes / Description:</label>
+                    <input type="text" name="description" placeholder="Optional trade failure details">
+                </div>
+
+                <button type="submit" class="btn" style="background-color: #dc3545;">Submit Loss</button>
+            </form>
+        </div>
+    {% else %}
+        <p class="error">Trade logging is unavailable until a trading pool is active.</p>
+    {% endif %}
+</div>
+
+</body>
+</html>

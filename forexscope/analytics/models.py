@@ -4,8 +4,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Q
-
-from django.contrib.auth.models import User
+from decimal import Decimal, ROUND_DOWN
+from django.db.models import Sum
 
 
 
@@ -263,106 +263,104 @@ class TradingPool(models.Model):
 
         return loss
 
-    
-def distribute_profit(self, profit, vault):
-    """
-    Distribute a recorded profit:
-    50% to the vault, 50% to the investor share pool.
-    """
+    def distribute_profit(self, profit, vault):
+        """
+        Distribute a recorded profit:
+        50% to the vault, 50% to the investor share pool.
+        """
 
-    with transaction.atomic():
-        # Reload and lock the relevant records.
-        pool = TradingPool.objects.select_for_update().get(pk=self.pk)
-        profit = ProfitTrade.objects.select_for_update().get(pk=profit.pk)
-        vault = VaultEquity.objects.select_for_update().get(pk=vault.pk)
+        with transaction.atomic():
+            # Reload and lock the relevant records.
+            pool = TradingPool.objects.select_for_update().get(pk=self.pk)
+            profit = ProfitTrade.objects.select_for_update().get(pk=profit.pk)
+            vault = VaultEquity.objects.select_for_update().get(pk=vault.pk)
 
-        # Validate ownership and relationships.
-        if profit.trading_pool_id != pool.pk:
-            raise ValidationError(
-                "This profit does not belong to this trading pool."
+            # Validate ownership and relationships.
+            if profit.trading_pool_id != pool.pk:
+                raise ValidationError(
+                    "This profit does not belong to this trading pool."
+                )
+
+            if profit.user_id != pool.user_id:
+                raise ValidationError(
+                    "The profit and trading pool must have the same owner."
+                )
+
+            if vault.user_id != pool.user_id:
+                raise ValidationError(
+                    "The vault and trading pool must have the same owner."
+                )
+
+            if SharePoolDistribution.objects.filter(profit=profit).exists():
+                raise ValidationError(
+                    "This profit has already been distributed."
+                )
+
+            amount = profit.profit_value
+
+            if amount <= Decimal("0.00"):
+                raise ValidationError("Profit must be greater than zero.")
+
+            # Ensure the pool can cover the distribution.
+            if pool.trading_pool_value < amount:
+                raise ValidationError(
+                    "Insufficient funds in the trading pool."
+                )
+
+            # Calculate the 50/50 split.
+            reinvestment = (amount * Decimal("0.50")).quantize(
+                Decimal("0.01")
+            )
+            investor_amount = amount - reinvestment
+
+            # Get or create this user's investor share pool.
+            share_pool, _ = InvestorSharePool.objects.get_or_create(
+                user=pool.user
             )
 
-        if profit.user_id != pool.user_id:
-            raise ValidationError(
-                "The profit and trading pool must have the same owner."
+            share_pool = InvestorSharePool.objects.select_for_update().get(
+                pk=share_pool.pk
             )
 
-        if vault.user_id != pool.user_id:
-            raise ValidationError(
-                "The vault and trading pool must have the same owner."
+            # Update all three balances.
+            pool.trading_pool_value -= amount
+            vault.vault_equity_value += reinvestment
+            share_pool.share_pool_value += investor_amount
+
+            pool.save(update_fields=[
+                "trading_pool_value",
+                "updated_at",
+            ])
+
+            vault.save(update_fields=[
+                "vault_equity_value",
+                "updated_at",
+            ])
+
+            share_pool.save(update_fields=[
+                "share_pool_value",
+                "updated_at",
+            ])
+
+            # Record the distribution.
+            distribution = SharePoolDistribution(
+                profit=profit,
+                vault=vault,
+                share_pool=share_pool,
+                total_profit=amount,
+                reinvestment_amount=reinvestment,
+                investor_amount=investor_amount,
             )
 
-        if SharePoolDistribution.objects.filter(profit=profit).exists():
-            raise ValidationError(
-                "This profit has already been distributed."
-            )
+            distribution.full_clean()
+            distribution.save()
 
-        amount = profit.profit_value
+        self.refresh_from_db()
+        vault.refresh_from_db()
+        share_pool.refresh_from_db()
 
-        if amount <= Decimal("0.00"):
-            raise ValidationError("Profit must be greater than zero.")
+        return distribution
 
-        # Ensure the pool can cover the distribution.
-        if pool.trading_pool_value < amount:
-            raise ValidationError(
-                "Insufficient funds in the trading pool."
-            )
-
-        # Calculate the 50/50 split.
-        reinvestment = (amount * Decimal("0.50")).quantize(
-            Decimal("0.01")
-        )
-        investor_amount = amount - reinvestment
-
-        # Get or create this user's investor share pool.
-        share_pool, _ = InvestorSharePool.objects.get_or_create(
-            user=pool.user
-        )
-
-        share_pool = InvestorSharePool.objects.select_for_update().get(
-            pk=share_pool.pk
-        )
-
-        # Update all three balances.
-        pool.trading_pool_value -= amount
-        vault.vault_equity_value += reinvestment
-        share_pool.share_pool_value += investor_amount
-
-        pool.save(update_fields=[
-            "trading_pool_value",
-            "updated_at",
-        ])
-
-        vault.save(update_fields=[
-            "vault_equity_value",
-            "updated_at",
-        ])
-
-        share_pool.save(update_fields=[
-            "share_pool_value",
-            "updated_at",
-        ])
-
-        # Record the distribution.
-        distribution = SharePoolDistribution(
-            profit=profit,
-            vault=vault,
-            share_pool=share_pool,
-            total_profit=amount,
-            reinvestment_amount=reinvestment,
-            investor_amount=investor_amount,
-        )
-
-        distribution.full_clean()
-        distribution.save()
-
-    self.refresh_from_db()
-    vault.refresh_from_db()
-    share_pool.refresh_from_db()
-
-    return distribution
-
-    
     class Meta:
         constraints = [
             models.CheckConstraint(
@@ -527,6 +525,99 @@ class InvestorSharePool(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    
+    def distribute_to_investors(self):
+        """
+        Allocate the entire available investor share pool
+        proportionally to investor contributions.
+
+        This records allocations; it does not transfer money
+        to external bank accounts.
+        """
+
+        cent = Decimal("0.01")
+
+        with transaction.atomic():
+            share_pool = InvestorSharePool.objects.select_for_update().get(
+                pk=self.pk
+            )
+
+            if share_pool.share_pool_value <= Decimal("0.00"):
+                raise ValidationError(
+                    "There are no funds available for distribution."
+                )
+
+            # Find each investor's contributions to this user's vaults.
+            contributions = (
+                InvestorContribution.objects
+                .filter(vault__user=share_pool.user)
+                .values("investor_id", "investor__investor_name")
+                .annotate(total=Sum("amount"))
+                .filter(total__gt=0)
+                .order_by("investor_id")
+            )
+
+            investors = list(contributions)
+
+            if not investors:
+                raise ValidationError(
+                    "No eligible investor contributions were found."
+                )
+
+            total_contributions = sum(
+                (item["total"] for item in investors),
+                Decimal("0.00"),
+            )
+
+            available = share_pool.share_pool_value
+            allocations = []
+            allocated_total = Decimal("0.00")
+
+            # Calculate each share, rounding down to cents.
+            for item in investors[:-1]:
+                investor_amount = (
+                    available * item["total"] / total_contributions
+                ).quantize(cent, rounding=ROUND_DOWN)
+
+                if investor_amount > 0:
+                    allocations.append(
+                        (item, investor_amount)
+                    )
+                    allocated_total += investor_amount
+
+            # Give the remaining cents to the final eligible investor.
+            # This guarantees the allocations add up exactly to the pool.
+            last = investors[-1]
+            last_amount = available - allocated_total
+
+            if last_amount > 0:
+                allocations.append((last, last_amount))
+
+            # Store allocation records and deduct the distributed balance.
+            records = []
+
+            for item, amount in allocations:
+                record = InvestorShareAllocation(
+                    investor_id=item["investor_id"],
+                    share_pool=share_pool,
+                    amount=amount,
+                    contribution_basis=item["total"],
+                    total_contributions_basis=total_contributions,
+                )
+                record.full_clean()
+                record.save()
+                records.append(record)
+
+            share_pool.share_pool_value = Decimal("0.00")
+            share_pool.save(update_fields=[
+                "share_pool_value",
+                "updated_at",
+            ])
+
+        self.refresh_from_db()
+        return records
+
+
     class Meta:
         constraints = [
             models.CheckConstraint(
@@ -600,3 +691,170 @@ class SharePoolDistribution(models.Model):
 
     def __str__(self):
         return f"Distribution of {self.total_profit}"
+
+    
+class InvestorInfo(models.Model):
+    investor_name = models.CharField(max_length=255)
+    investor_email = models.EmailField(unique=True)
+    investor_phone = models.CharField(max_length=30)
+
+    # Cumulative capital contributed by this investor.
+    investor_investment = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+
+    join_date = models.DateTimeField(auto_now_add=True)
+
+    def contribute_to_vault(self, vault, amount):
+        """Record a contribution and add it to company equity."""
+
+        amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+
+        if amount <= Decimal("0.00"):
+            raise ValidationError(
+                "Contribution must be greater than zero."
+            )
+
+        if self.pk is None or vault.pk is None:
+            raise ValidationError(
+                "Save the investor and vault before recording a contribution."
+            )
+
+        with transaction.atomic():
+            investor = InvestorInfo.objects.select_for_update().get(
+                pk=self.pk
+            )
+
+            company_vault = VaultEquity.objects.select_for_update().get(
+                pk=vault.pk
+            )
+
+            investor.investor_investment += amount
+            company_vault.vault_equity_value += amount
+
+            investor.save(update_fields=["investor_investment"])
+            company_vault.save(update_fields=[
+                "vault_equity_value",
+                "updated_at",
+            ])
+
+            contribution = InvestorContribution(
+                investor=investor,
+                vault=company_vault,
+                amount=amount,
+            )
+            contribution.full_clean()
+            contribution.save()
+
+        self.refresh_from_db()
+        vault.refresh_from_db()
+
+        return contribution
+
+    def __str__(self):
+        return self.investor_name
+
+
+
+class InvestorContribution(models.Model):
+    """Historical record of each investor deposit."""
+
+    investor = models.ForeignKey(
+        InvestorInfo,
+        on_delete=models.PROTECT,
+        related_name="contributions",
+    )
+
+    vault = models.ForeignKey(
+        VaultEquity,
+        on_delete=models.PROTECT,
+        related_name="investor_contributions",
+    )
+
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    contribution_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-contribution_date"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(amount__gt=0),
+                name="investor_contribution_amount_positive",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+
+        if self.amount is not None and self.amount <= Decimal("0.00"):
+            raise ValidationError(
+                {"amount": "Contribution must be greater than zero."}
+            )
+
+    def __str__(self):
+        return (
+            f"{self.investor.investor_name}: "
+            f"{self.amount}"
+        )
+
+
+
+class InvestorShareAllocation(models.Model):
+    """Records an investor's allocated share of a pool distribution."""
+
+    investor = models.ForeignKey(
+        InvestorInfo,
+        on_delete=models.PROTECT,
+        related_name="share_allocations",
+    )
+
+    share_pool = models.ForeignKey(
+        InvestorSharePool,
+        on_delete=models.PROTECT,
+        related_name="allocations",
+    )
+
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    contribution_basis = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        help_text="Investor's cumulative contributions at allocation time.",
+    )
+
+    total_contributions_basis = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        help_text="Total eligible investor contributions at allocation time.",
+    )
+
+    distribution_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-distribution_date"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(amount__gt=0),
+                name="investor_share_allocation_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(contribution_basis__gt=0),
+                name="investor_allocation_basis_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(total_contributions_basis__gt=0),
+                name="investor_total_basis_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.investor.investor_name}: {self.amount}"

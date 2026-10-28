@@ -39,7 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'analytics',
-    'compressor'
+    'compressor',
+    'crispy_forms',
+    'crispy_bootstrap5',
 ]
 
 MIDDLEWARE = [
@@ -139,3 +141,8 @@ LOGIN_REDIRECT_URL = 'dashboard'  # Change this to '/dashboard/' or your preferr
 
 # Where to redirect users after they log out
 LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# Configure crispy forms to use Bootstrap 5 styling
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+

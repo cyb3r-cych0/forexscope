@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -37,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'analytics'
+    'analytics',
+    'compressor'
 ]
 
 MIDDLEWARE = [
@@ -115,7 +117,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
+
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 
 # Email
@@ -131,7 +135,7 @@ MAILERS = {
 LOGIN_URL = '/accounts/login/'
 
 # Where to redirect users after a successful login
-LOGIN_REDIRECT_URL = 'wallet_dashboard'  # Change this to '/dashboard/' or your preferred route
+LOGIN_REDIRECT_URL = 'dashboard'  # Change this to '/dashboard/' or your preferred route
 
 # Where to redirect users after they log out
 LOGOUT_REDIRECT_URL = '/accounts/login/'

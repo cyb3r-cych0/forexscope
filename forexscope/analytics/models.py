@@ -5,10 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Q
 
-
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 
 
@@ -266,6 +263,106 @@ class TradingPool(models.Model):
 
         return loss
 
+    
+def distribute_profit(self, profit, vault):
+    """
+    Distribute a recorded profit:
+    50% to the vault, 50% to the investor share pool.
+    """
+
+    with transaction.atomic():
+        # Reload and lock the relevant records.
+        pool = TradingPool.objects.select_for_update().get(pk=self.pk)
+        profit = ProfitTrade.objects.select_for_update().get(pk=profit.pk)
+        vault = VaultEquity.objects.select_for_update().get(pk=vault.pk)
+
+        # Validate ownership and relationships.
+        if profit.trading_pool_id != pool.pk:
+            raise ValidationError(
+                "This profit does not belong to this trading pool."
+            )
+
+        if profit.user_id != pool.user_id:
+            raise ValidationError(
+                "The profit and trading pool must have the same owner."
+            )
+
+        if vault.user_id != pool.user_id:
+            raise ValidationError(
+                "The vault and trading pool must have the same owner."
+            )
+
+        if SharePoolDistribution.objects.filter(profit=profit).exists():
+            raise ValidationError(
+                "This profit has already been distributed."
+            )
+
+        amount = profit.profit_value
+
+        if amount <= Decimal("0.00"):
+            raise ValidationError("Profit must be greater than zero.")
+
+        # Ensure the pool can cover the distribution.
+        if pool.trading_pool_value < amount:
+            raise ValidationError(
+                "Insufficient funds in the trading pool."
+            )
+
+        # Calculate the 50/50 split.
+        reinvestment = (amount * Decimal("0.50")).quantize(
+            Decimal("0.01")
+        )
+        investor_amount = amount - reinvestment
+
+        # Get or create this user's investor share pool.
+        share_pool, _ = InvestorSharePool.objects.get_or_create(
+            user=pool.user
+        )
+
+        share_pool = InvestorSharePool.objects.select_for_update().get(
+            pk=share_pool.pk
+        )
+
+        # Update all three balances.
+        pool.trading_pool_value -= amount
+        vault.vault_equity_value += reinvestment
+        share_pool.share_pool_value += investor_amount
+
+        pool.save(update_fields=[
+            "trading_pool_value",
+            "updated_at",
+        ])
+
+        vault.save(update_fields=[
+            "vault_equity_value",
+            "updated_at",
+        ])
+
+        share_pool.save(update_fields=[
+            "share_pool_value",
+            "updated_at",
+        ])
+
+        # Record the distribution.
+        distribution = SharePoolDistribution(
+            profit=profit,
+            vault=vault,
+            share_pool=share_pool,
+            total_profit=amount,
+            reinvestment_amount=reinvestment,
+            investor_amount=investor_amount,
+        )
+
+        distribution.full_clean()
+        distribution.save()
+
+    self.refresh_from_db()
+    vault.refresh_from_db()
+    share_pool.refresh_from_db()
+
+    return distribution
+
+    
     class Meta:
         constraints = [
             models.CheckConstraint(
@@ -440,3 +537,66 @@ class InvestorSharePool(models.Model):
 
     def __str__(self):
         return f"Investor Share Pool: {self.share_pool_value}"
+
+
+
+class SharePoolDistribution(models.Model):
+    """Records the distribution of an individual profit."""
+
+    profit = models.OneToOneField(
+        ProfitTrade,
+        on_delete=models.PROTECT,
+        related_name="distribution",
+    )
+
+    vault = models.ForeignKey(
+        VaultEquity,
+        on_delete=models.PROTECT,
+        related_name="profit_distributions",
+    )
+
+    share_pool = models.ForeignKey(
+        InvestorSharePool,
+        on_delete=models.PROTECT,
+        related_name="distributions",
+    )
+
+    total_profit = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    reinvestment_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    investor_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    distribution_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-distribution_date"]
+
+    def clean(self):
+        super().clean()
+
+        if self.total_profit != (
+            self.reinvestment_amount + self.investor_amount
+        ):
+            raise ValidationError(
+                "Distribution amounts must equal the total profit."
+            )
+
+        if min(
+            self.total_profit,
+            self.reinvestment_amount,
+            self.investor_amount,
+        ) < Decimal("0.00"):
+            raise ValidationError("Distribution amounts cannot be negative.")
+
+    def __str__(self):
+        return f"Distribution of {self.total_profit}"

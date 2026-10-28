@@ -4,20 +4,19 @@ from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import View
 from django.utils import timezone
-from decimal import Decimal, InvalidOperation
-from .models import VaultEquity, TradingPool, PoolTransfer, ProfitTrade, LossTrade
+from django.db.models import Sum, Count
 from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
+from decimal import Decimal, InvalidOperation
+from .models import VaultEquity, TradingPool, PoolTransfer, ProfitTrade, LossTrade
 
-
-from django.http import HttpResponse
 
 def home(request):
     return render(request, 'home.html')
 
-@login_required
-def wallet_dashboard(request):
+# @login_required
+# def wallet_dashboard(request):
     # Fetch data for the logged-in user
     vault = VaultEquity.objects.filter(user=request.user).first()
     pool = TradingPool.objects.filter(user=request.user).first()
@@ -27,6 +26,102 @@ def wallet_dashboard(request):
         'pool': pool,
     }
     return render(request, 'wallet_dashboard.html', context)
+
+@login_required
+def wallet_dashboard(request):
+    vault = VaultEquity.objects.filter(user=request.user).first()
+    pool = TradingPool.objects.filter(user=request.user).first()
+    
+    # 1. Gather raw statistics metrics from the database
+    profit_stats = ProfitTrade.objects.filter(user=request.user).aggregate(
+        total_p=Sum('profit_value'),
+        count_p=Count('id')
+    )
+    loss_stats = LossTrade.objects.filter(user=request.user).aggregate(
+        total_l=Sum('loss_value'),
+        count_l=Count('id')
+    )
+
+    gross_profit = profit_stats['total_p'] or Decimal('0.00')
+    gross_loss = loss_stats['total_l'] or Decimal('0.00')
+    win_count = profit_stats['count_p'] or 0
+    loss_count = loss_stats['count_l'] or 0
+    total_trades = win_count + loss_count
+
+    # 2. Calculate real-time indicators safely avoiding zero divisions
+    win_rate = (win_count / total_trades) * 100 if total_trades > 0 else 0
+    net_profit = gross_profit - gross_loss
+    
+    avg_profit = gross_profit / win_count if win_count > 0 else Decimal('0.00')
+    avg_loss = gross_loss / loss_count if loss_count > 0 else Decimal('0.00')
+    profit_loss_ratio = avg_profit / avg_loss if avg_loss > 0 else (gross_profit if gross_profit > 0 else Decimal('0.00'))
+
+    context = {
+        'vault': vault,
+        'pool': pool,
+        'stats': {
+            'total_trades': total_trades,
+            'win_rate': round(win_rate, 1),
+            'profit_loss_ratio': round(profit_loss_ratio, 2),
+            'gross_profit': gross_profit,
+            'gross_loss': gross_loss,
+            'net_profit': net_profit,
+        }
+    }
+    return render(request, 'wallet_dashboard.html', context)
+
+
+@login_required
+def record_trade_view(request, pool_id):
+    if request.method != "POST":
+        return redirect('wallet_dashboard')
+        
+    trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)
+    
+    # Extract values from unified parameters
+    result_type = request.POST.get('result_type') # Expected: 'PROFIT' or 'LOSS'
+    utility_traded = request.POST.get('utility_traded')
+    trade_direction = request.POST.get('trade_direction')
+    amount_raw = request.POST.get('amount', '0.00')
+    description = request.POST.get('description', '').strip()
+    
+    try:
+        amount = Decimal(str(amount_raw)).quantize(Decimal("0.01"))
+        if amount <= Decimal("0.00"):
+            messages.error(request, "Trade execution value must be greater than zero.")
+            return redirect('wallet_dashboard')
+            
+        with transaction.atomic():
+            pool = TradingPool.objects.select_for_update().get(pk=trading_pool.pk)
+            
+            if result_type == "PROFIT":
+                ProfitTrade.objects.create(
+                    user=request.user, trading_pool=pool, utility_traded=utility_traded,
+                    trade_direction=trade_direction, profit_value=amount, description=description
+                )
+                pool.trading_pool_value += amount
+                pool.save(update_fields=['trading_pool_value', 'updated_at'])
+                messages.success(request, f"Logged trade profit of ${amount} for {utility_traded}.")
+                
+            elif result_type == "LOSS":
+                if pool.trading_pool_value < amount:
+                    messages.error(request, f"Deduction rejected. Insufficient pool allocation (${pool.trading_pool_value}).")
+                    return redirect('wallet_dashboard')
+                    
+                LossTrade.objects.create(
+                    user=request.user, trading_pool=pool, utility_traded=utility_traded,
+                    trade_direction=trade_direction, loss_value=amount, description=description
+                )
+                pool.trading_pool_value -= amount
+                pool.save(update_fields=['trading_pool_value', 'updated_at'])
+                messages.success(request, f"Logged trade loss of ${amount} for {utility_traded}.")
+            else:
+                messages.error(request, "Invalid result selector target context.")
+                
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Numeric verification error. Check form entries.")
+        
+    return redirect('wallet_dashboard')
 
 
 @login_required
@@ -48,6 +143,7 @@ def create_wallet_resource(request, resource):
 
     return redirect('wallet_dashboard')
 
+@login_required
 
 def add_equity_view(request, vault_id):
     if request.method == "POST":
@@ -62,7 +158,7 @@ def add_equity_view(request, vault_id):
 
     return redirect('wallet_dashboard')
 
-
+@login_required
 def transfer_to_pool_view(request, vault_id):
     if request.method == "POST":
         vault = get_object_or_404(VaultEquity, pk=vault_id, user=request.user)
@@ -79,7 +175,7 @@ def transfer_to_pool_view(request, vault_id):
     return redirect('wallet_dashboard')
 
 
-def record_profit_trade_view(request, pool_id):
+# def record_profit_trade_view(request, pool_id):
     if request.method == "POST":
         # Ensure the pool belongs to the logged-in user
         trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)
@@ -127,7 +223,7 @@ def record_profit_trade_view(request, pool_id):
     return redirect('wallet_dashboard')
 
 
-def record_loss_trade_view(request, pool_id):
+# def record_loss_trade_view(request, pool_id):
     if request.method == "POST":
         # Confirm pool belongs to logged-in user
         trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)

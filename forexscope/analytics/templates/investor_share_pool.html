@@ -1,0 +1,547 @@
+ {% load compress %}
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investor Share Pool</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                         sans-serif;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 35px auto;
+            padding: 0 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .page-header h2 {
+            margin: 0 0 5px;
+        }
+
+        .page-header p {
+            margin: 0;
+            color: #6a737d;
+            font-size: 14px;
+        }
+
+        .grid-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            border: 1px solid #e1e4e8;
+            padding: 20px 15px;
+            border-radius: 8px;
+            background: #fff;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #586069;
+        }
+
+        .stat-val {
+            font-size: 23px;
+            font-weight: 700;
+            margin-top: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .blue {
+            color: #0366d6;
+        }
+
+        .green {
+            color: #218838;
+        }
+
+        .purple {
+            color: #6f42c1;
+        }
+
+        .grid-main {
+            display: grid;
+            grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .card {
+            border: 1px solid #e1e4e8;
+            padding: 22px;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+            min-width: 0;
+        }
+
+        .card h3 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+
+        .description {
+            color: #6a737d;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .account-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 13px 0;
+            border-bottom: 1px solid #eaecef;
+        }
+
+        .account-row:last-child {
+            border-bottom: none;
+        }
+
+        .account-label {
+            font-size: 14px;
+            color: #586069;
+        }
+
+        .account-value {
+            font-weight: 700;
+            text-align: right;
+            overflow-wrap: anywhere;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 14px;
+            background: #2f363d;
+            color: #fff;
+            border: 1px solid #2f363d;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #24292e;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: #0366d6;
+            border-color: #0366d6;
+        }
+
+        .btn-primary:hover {
+            background: #0256b9;
+            border-color: #0256b9;
+        }
+
+        .btn-outline {
+            background: #fff;
+            color: #0366d6;
+            border-color: #0366d6;
+        }
+
+        .btn-outline:hover {
+            background: #f1f8ff;
+            color: #0256b9;
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        .account-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .messages {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px;
+        }
+
+        .message {
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #dcffe4;
+            color: #155724;
+        }
+
+        .error {
+            background: #ffeef0;
+            color: #721c24;
+        }
+
+        .warning {
+            background: #fff5b1;
+            color: #735c0f;
+        }
+
+        .info {
+            background: #eaf5ff;
+            color: #084b83;
+        }
+
+        .notice {
+            padding: 12px;
+            border-radius: 5px;
+            background: #f6f8fa;
+            color: #586069;
+            font-size: 13px;
+            line-height: 1.6;
+            margin: 16px 0;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        thead {
+            background: #f6f8fa;
+        }
+
+        th,
+        td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #e1e4e8;
+            text-align: left;
+        }
+
+        th {
+            color: #586069;
+            font-weight: 600;
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 35px 15px;
+        }
+
+        .empty-state h4 {
+            margin: 0 0 8px;
+        }
+
+        .empty-state p {
+            color: #6a737d;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .footer-note {
+            margin-top: 24px;
+            color: #6a737d;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            .grid-main {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 20px auto;
+                padding: 0 12px;
+            }
+
+            .grid-stats {
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 15px 8px;
+            }
+
+            .stat-val {
+                font-size: 19px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .account-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .account-value {
+                text-align: left;
+            }
+
+            .account-actions {
+                flex-direction: column;
+            }
+
+            .account-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <!-- Page header -->
+    <header class="page-header">
+        <div>
+            <h2>Investor Share Pool</h2>
+            <p>Manage profit allocations and monitor investor distribution records.</p>
+        </div>
+
+        <a href="{% url 'wallet_dashboard' %}" class="btn btn-outline">
+            Back to Wallet
+        </a>
+    </header>
+
+    <!-- System messages -->
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="message
+                    {% if 'success' in message.tags %}success
+                    {% elif 'error' in message.tags %}error
+                    {% elif 'warning' in message.tags %}warning
+                    {% else %}info{% endif %}">
+                    {{ message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <!-- Summary statistics -->
+    <section class="grid-stats">
+
+        <div class="stat-card">
+            <div class="stat-label">Available Share Pool</div>
+            <div class="stat-val purple">
+                ${{ share_pool.share_pool_value|default:"0.00"|floatformat:2 }}
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Total Contributions</div>
+            <div class="stat-val blue">
+                ${{ contribution_total|default:"0.00"|floatformat:2 }}
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Total Allocations Recorded</div>
+            <div class="stat-val green">
+                ${{ allocation_total|default:"0.00"|floatformat:2 }}
+            </div>
+        </div>
+
+    </section>
+
+    <div class="grid-main">
+
+        <!-- Allocation controls -->
+        <section class="card">
+            <h3>Allocate Investor Shares</h3>
+
+            <p class="description">
+                Allocate the available share pool proportionally to eligible
+                investors using their recorded contributions as the allocation
+                basis.
+            </p>
+
+            <div class="account-row">
+                <span class="account-label">Current Available Balance</span>
+                <span class="account-value purple">
+                    ${{ share_pool.share_pool_value|default:"0.00"|floatformat:2 }}
+                </span>
+            </div>
+
+            <div class="account-row">
+                <span class="account-label">Contribution Basis</span>
+                <span class="account-value blue">
+                    ${{ contribution_total|default:"0.00"|floatformat:2 }}
+                </span>
+            </div>
+
+            <div class="notice">
+                Allocations are accounting records. This action does not initiate
+                a bank transfer or confirm that investors have received payment.
+            </div>
+
+            {% if share_pool and share_pool.share_pool_value > 0 and contribution_total > 0 %}
+                <form method="post" action="{% url 'investor_share_pool' %}"
+                      onsubmit="return confirm('Allocate the entire available share pool to eligible investors?');">
+                    {% csrf_token %}
+
+                    <button type="submit" class="btn btn-primary btn-full">
+                        Allocate Available Shares
+                    </button>
+                </form>
+
+            {% elif not share_pool %}
+                <div class="message warning">
+                    The investor share pool has not been created yet. Record a
+                    profitable trade and complete the profit distribution first.
+                </div>
+
+            {% elif contribution_total <= 0 %}
+                <div class="message warning">
+                    No eligible investor contributions were found. Register
+                    investors and record their contributions before allocating.
+                </div>
+
+            {% else %}
+                <div class="message info">
+                    There is currently no balance available for allocation.
+                </div>
+            {% endif %}
+
+            <div class="account-actions">
+                <a href="{% url 'register_investor' %}" class="btn btn-outline">
+                    Register Investor
+                </a>
+            </div>
+        </section>
+
+        <!-- Allocation history -->
+        <section class="card">
+            <h3>Investor Allocation History</h3>
+
+            <p class="description">
+                Review allocation records generated by previous distributions.
+            </p>
+
+            {% if allocations %}
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Investor</th>
+                                <th class="text-right">Contribution Basis</th>
+                                <th class="text-right">Total Basis</th>
+                                <th class="text-right">Allocated Amount</th>
+                                <th>Distribution Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for allocation in allocations %}
+                                <tr>
+                                    <td>
+                                        {{ allocation.investor.investor_name }}
+                                    </td>
+
+                                    <td class="text-right">
+                                        ${{ allocation.contribution_basis|floatformat:2 }}
+                                    </td>
+
+                                    <td class="text-right">
+                                        ${{ allocation.total_contributions_basis|floatformat:2 }}
+                                    </td>
+
+                                    <td class="text-right green">
+                                        <strong>
+                                            ${{ allocation.amount|floatformat:2 }}
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        {{ allocation.distribution_date|date:"d M Y, H:i" }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+
+                        <tfoot>
+                            <tr>
+                                <th colspan="3">Total Allocations</th>
+                                <th class="text-right">
+                                    ${{ allocation_total|floatformat:2 }}
+                                </th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+            {% else %}
+                <div class="empty-state">
+                    <h4>No Allocation Records</h4>
+                    <p>
+                        Investor allocations will appear here after the share
+                        pool has been funded and an allocation has been processed.
+                    </p>
+                </div>
+            {% endif %}
+        </section>
+
+    </div>
+
+    <p class="footer-note">
+        Trading Wallet Management System
+    </p>
+
+</div>
+</body>
+</html>

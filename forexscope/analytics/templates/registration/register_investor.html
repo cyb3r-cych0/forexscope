@@ -1,0 +1,60 @@
+{% load crispy_forms_tags %}
+
+
+<div class="container col-md-9 mt-5 mb-5" style="width: 95%; font-size: 14px">
+
+    <!-- Register Form -->
+    <div class="container py-5 mt-3 col-lg-12" >
+        <!-- Message From BackEnd -->
+            {% for message in messages %}
+                {% if message.tags == 'success' %}
+                    <div class="text-center alert alert-primary alert-dismissible fade show" role="alert">{{ message }}
+                        <a href="#" type="button" class="btn btn-close" data-bs-dismiss="alert" aria-label="Close"></a>
+                    </div>
+                {% elif message.tags == 'error' %}
+                    <div class="text-center alert alert-primary alert-dismissible fade show" role="alert">{{ message }}
+                        <a href="#" type="button" class="btn btn-close" data-bs-dismiss="alert" aria-label="Close"></a>
+                    </div>
+                {% endif %}
+            {% endfor%}
+        <div class="col">
+            <div class="card mb-5 rounded-3 shadow-lg border-0">
+              <div class="card-header py-3 text-bg-success border-0">
+                <h6 class="my-0 fw-normal" style="color: white;">
+                    <i class="fa fa-user">&nbsp;&nbsp;ENTER &nbsp;INVESTOR &nbsp;DETAILS</i>
+                </h6>
+              </div>
+            <div class="row mt-5">
+                <div class="col-md-6">
+                    <div class="container card p-3 border-0 shadow-lg mt-1 mb-5" style="width: 95%;">
+                        <div class="text-center mb-3 mt-1"><h5><i class="fa-solid fa-user-pen">&nbsp;NEW &nbsp;INVESTOR &nbsp;DETAILS</i></h5></div>
+                            <form method="POST" autocomplete="off" novalidate>
+                                {% csrf_token %}
+                                <div class="row">
+                                    <div class="col-12 mt-2">
+                                        {{ form.investor_name|as_crispy_field }}
+                                    </div>
+                                    <div class="col-6 mt-2">
+                                        {{ form.investor_email|as_crispy_field }}
+                                    </div>
+                                    <div class="col-6 mt-2">
+                                        {{ form.investor_phone|as_crispy_field }}
+                                    </div>
+                                    <div class="col-12 mt-2">
+                                        {{ form.investor_investment|as_crispy_field }}
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-100 btn btn-success mt-2 rounded-pill">
+                                    <i class="fa-solid fa-user-plus">&nbsp;&nbsp;REGISTER</i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <div class="col-md-6">
+                    <img src="#" alt="Image" style="width: 550px; height: 400px; padding: 1rem;" >
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>

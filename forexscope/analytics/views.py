@@ -9,119 +9,202 @@ from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from decimal import Decimal, InvalidOperation
-from .models import VaultEquity, TradingPool, PoolTransfer, ProfitTrade, LossTrade
+from .forms import InvestorInfoForm
+from .models import (
+                    VaultEquity, TradingPool, PoolTransfer, 
+                    ProfitTrade, LossTrade, SharePoolDistribution, 
+                    InvestorContribution, InvestorInfo, InvestorSharePool, InvestorShareAllocation
+                )
 
 
 def home(request):
     return render(request, 'home.html')
 
-# @login_required
-# def wallet_dashboard(request):
-    # Fetch data for the logged-in user
-    vault = VaultEquity.objects.filter(user=request.user).first()
-    pool = TradingPool.objects.filter(user=request.user).first()
 
-    context = {
-        'vault': vault,
-        'pool': pool,
-    }
-    return render(request, 'wallet_dashboard.html', context)
 
 @login_required
 def wallet_dashboard(request):
     vault = VaultEquity.objects.filter(user=request.user).first()
     pool = TradingPool.objects.filter(user=request.user).first()
-    
-    # 1. Gather raw statistics metrics from the database
-    profit_stats = ProfitTrade.objects.filter(user=request.user).aggregate(
-        total_p=Sum('profit_value'),
-        count_p=Count('id')
-    )
-    loss_stats = LossTrade.objects.filter(user=request.user).aggregate(
-        total_l=Sum('loss_value'),
-        count_l=Count('id')
+    share = InvestorSharePool.objects.filter(user=request.user).first()
+
+    # Only count contributions to this user's company vaults.
+    contributions = InvestorContribution.objects.filter(
+        vault__user=request.user
     )
 
-    gross_profit = profit_stats['total_p'] or Decimal('0.00')
-    gross_loss = loss_stats['total_l'] or Decimal('0.00')
-    win_count = profit_stats['count_p'] or 0
-    loss_count = loss_stats['count_l'] or 0
+    investor_stats = contributions.aggregate(
+        total_i=Sum("amount"),
+        count_i=Count("investor", distinct=True),
+    )
+
+    profit_stats = ProfitTrade.objects.filter(
+        user=request.user
+    ).aggregate(
+        total_p=Sum("profit_value"),
+        count_p=Count("id"),
+    )
+
+    loss_stats = LossTrade.objects.filter(
+        user=request.user
+    ).aggregate(
+        total_l=Sum("loss_value"),
+        count_l=Count("id"),
+    )
+
+    gross_profit = profit_stats["total_p"] or Decimal("0.00")
+    gross_loss = loss_stats["total_l"] or Decimal("0.00")
+
+    win_count = profit_stats["count_p"] or 0
+    loss_count = loss_stats["count_l"] or 0
     total_trades = win_count + loss_count
 
-    # 2. Calculate real-time indicators safely avoiding zero divisions
-    win_rate = (win_count / total_trades) * 100 if total_trades > 0 else 0
+    gross_investment = investor_stats["total_i"] or Decimal("0.00")
+    investors_count = investor_stats["count_i"] or 0
+
+    win_rate = (
+        (win_count / total_trades) * 100
+        if total_trades else 0
+    )
+
     net_profit = gross_profit - gross_loss
-    
-    avg_profit = gross_profit / win_count if win_count > 0 else Decimal('0.00')
-    avg_loss = gross_loss / loss_count if loss_count > 0 else Decimal('0.00')
-    profit_loss_ratio = avg_profit / avg_loss if avg_loss > 0 else (gross_profit if gross_profit > 0 else Decimal('0.00'))
+
+    avg_profit = (
+        gross_profit / win_count
+        if win_count else Decimal("0.00")
+    )
+    avg_loss = (
+        gross_loss / loss_count
+        if loss_count else Decimal("0.00")
+    )
+
+    profit_loss_ratio = (
+        avg_profit / avg_loss
+        if avg_loss > 0
+        else Decimal("0.00")
+    )
+
+    # Distributions belonging to this user's trading activity.
+    distributions = SharePoolDistribution.objects.filter(
+        profit__user=request.user
+    ).select_related("profit", "vault", "share_pool")
+
+    total_reinvested = distributions.aggregate(
+        total=Sum("reinvestment_amount")
+    )["total"] or Decimal("0.00")
+
+    total_investor_allocated = distributions.aggregate(
+        total=Sum("investor_amount")
+    )["total"] or Decimal("0.00")
 
     context = {
-        'vault': vault,
-        'pool': pool,
-        'stats': {
-            'total_trades': total_trades,
-            'win_rate': round(win_rate, 1),
-            'profit_loss_ratio': round(profit_loss_ratio, 2),
-            'gross_profit': gross_profit,
-            'gross_loss': gross_loss,
-            'net_profit': net_profit,
-        }
+        "vault": vault,
+        "pool": pool,
+        "share": share,
+        "gross_investment": gross_investment,
+        "investors_count": investors_count,
+        "total_reinvested": total_reinvested,
+        "total_investor_allocated": total_investor_allocated,
+        "stats": {
+            "total_trades": total_trades,
+            "win_rate": round(win_rate, 1),
+            "profit_loss_ratio": round(profit_loss_ratio, 2),
+            "gross_profit": gross_profit,
+            "gross_loss": gross_loss,
+            "net_profit": net_profit,
+        },
     }
-    return render(request, 'wallet_dashboard.html', context)
+
+    return render(request, "wallet_dashboard.html", context)
+
 
 
 @login_required
+@require_POST
 def record_trade_view(request, pool_id):
-    if request.method != "POST":
-        return redirect('wallet_dashboard')
-        
-    trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)
-    
-    # Extract values from unified parameters
-    result_type = request.POST.get('result_type') # Expected: 'PROFIT' or 'LOSS'
-    utility_traded = request.POST.get('utility_traded')
-    trade_direction = request.POST.get('trade_direction')
-    amount_raw = request.POST.get('amount', '0.00')
-    description = request.POST.get('description', '').strip()
-    
+    result_type = request.POST.get("result_type", "").strip().upper()
+    utility = request.POST.get("utility_traded", "").strip()
+    direction = request.POST.get("trade_direction", "").strip().upper()
+    description = request.POST.get("description", "").strip()
+    amount_raw = request.POST.get("amount", "").strip()
+
     try:
-        amount = Decimal(str(amount_raw)).quantize(Decimal("0.01"))
-        if amount <= Decimal("0.00"):
-            messages.error(request, "Trade execution value must be greater than zero.")
-            return redirect('wallet_dashboard')
-            
+        amount = Decimal(amount_raw).quantize(Decimal("0.01"))
+
+        if not amount.is_finite() or amount <= Decimal("0.00"):
+            raise InvalidOperation("Amount must be positive.")
+
+        # Validate the selected values against the model choices.
+        valid_utilities = {
+            value for value, label in ProfitTrade.TradeUtility.choices
+        }
+        valid_directions = {
+            value for value, label in ProfitTrade.TradeDirection.choices
+        }
+
+        if utility not in valid_utilities:
+            raise ValidationError("Select a valid trading instrument.")
+
+        if direction not in valid_directions:
+            raise ValidationError("Select a valid trade direction.")
+
+        if result_type not in {"PROFIT", "LOSS"}:
+            raise ValidationError("Select PROFIT or LOSS.")
+
         with transaction.atomic():
-            pool = TradingPool.objects.select_for_update().get(pk=trading_pool.pk)
-            
+            pool = get_object_or_404(
+                TradingPool.objects.select_for_update(),
+                pk=pool_id,
+                user=request.user,
+            )
+
             if result_type == "PROFIT":
-                ProfitTrade.objects.create(
-                    user=request.user, trading_pool=pool, utility_traded=utility_traded,
-                    trade_direction=trade_direction, profit_value=amount, description=description
+                vault = get_object_or_404(
+                    VaultEquity.objects.select_for_update(),
+                    user=request.user,
                 )
-                pool.trading_pool_value += amount
-                pool.save(update_fields=['trading_pool_value', 'updated_at'])
-                messages.success(request, f"Logged trade profit of ${amount} for {utility_traded}.")
-                
-            elif result_type == "LOSS":
-                if pool.trading_pool_value < amount:
-                    messages.error(request, f"Deduction rejected. Insufficient pool allocation (${pool.trading_pool_value}).")
-                    return redirect('wallet_dashboard')
-                    
-                LossTrade.objects.create(
-                    user=request.user, trading_pool=pool, utility_traded=utility_traded,
-                    trade_direction=trade_direction, loss_value=amount, description=description
+
+                profit = pool.record_profit(
+                    amount=amount,
+                    utility=utility,
+                    direction=direction,
+                    description=description,
                 )
-                pool.trading_pool_value -= amount
-                pool.save(update_fields=['trading_pool_value', 'updated_at'])
-                messages.success(request, f"Logged trade loss of ${amount} for {utility_traded}.")
+
+                distribution = pool.distribute_profit(profit, vault)
+
+                messages.success(
+                    request,
+                    (
+                        f"Profit of {amount:.2f} recorded. "
+                        f"{distribution.reinvestment_amount:.2f} "
+                        "returned to the vault and "
+                        f"{distribution.investor_amount:.2f} "
+                        "added to the investor share pool."
+                    ),
+                )
+
             else:
-                messages.error(request, "Invalid result selector target context.")
-                
-    except (InvalidOperation, ValueError):
-        messages.error(request, "Numeric verification error. Check form entries.")
-        
-    return redirect('wallet_dashboard')
+                loss = pool.record_loss(
+                    amount=amount,
+                    utility=utility,
+                    direction=direction,
+                    description=description,
+                )
+
+                messages.success(
+                    request,
+                    f"Loss of {loss.loss_value:.2f} recorded successfully.",
+                )
+
+    except (InvalidOperation, ValueError, TypeError):
+        messages.error(request, "Enter a valid positive monetary amount.")
+
+    except ValidationError as exc:
+        for error in getattr(exc, "messages", [str(exc)]):
+            messages.error(request, error)
+
+    return redirect("wallet_dashboard")
 
 
 @login_required
@@ -143,137 +226,290 @@ def create_wallet_resource(request, resource):
 
     return redirect('wallet_dashboard')
 
-@login_required
 
+
+@login_required
+@require_POST
 def add_equity_view(request, vault_id):
-    if request.method == "POST":
-        vault = get_object_or_404(VaultEquity, pk=vault_id, user=request.user)
-        amount = request.POST.get('amount', 0)
+    vault = get_object_or_404(
+        VaultEquity,
+        pk=vault_id,
+        user=request.user,
+    )
 
-        try:
-            vault.add_equity(amount)
-            messages.success(request, f"Successfully added ${amount} to your vault.")
-        except ValidationError as e:
-            messages.error(request, e.message)
+    try:
+        amount = Decimal(request.POST.get("amount", "").strip())
+        vault.add_equity(amount)
 
-    return redirect('wallet_dashboard')
+        messages.success(
+            request,
+            f"Successfully added {amount:.2f} to your vault.",
+        )
+
+    except (InvalidOperation, ValueError, TypeError):
+        messages.error(request, "Enter a valid monetary amount.")
+
+    except ValidationError as exc:
+        for error in getattr(exc, "messages", [str(exc)]):
+            messages.error(request, error)
+
+    return redirect("wallet_dashboard")
+
+
 
 @login_required
+@require_POST
 def transfer_to_pool_view(request, vault_id):
-    if request.method == "POST":
-        vault = get_object_or_404(VaultEquity, pk=vault_id, user=request.user)
-        # Fetch the user's trading pool
-        pool = get_object_or_404(TradingPool, user=request.user)
-        amount = request.POST.get('amount', 0)
+    vault = get_object_or_404(
+        VaultEquity,
+        pk=vault_id,
+        user=request.user,
+    )
+
+    pool = TradingPool.objects.filter(
+        user=request.user
+    ).first()
+
+    if pool is None:
+        messages.error(
+            request,
+            "Create your trading pool before transferring funds.",
+        )
+        return redirect("wallet_dashboard")
+
+    try:
+        amount = Decimal(request.POST.get("amount", "").strip())
+        vault.transfer_to_trading_pool(pool, amount)
+
+        messages.success(
+            request,
+            f"Successfully transferred {amount:.2f} to the trading pool.",
+        )
+
+    except (InvalidOperation, ValueError, TypeError):
+        messages.error(request, "Enter a valid monetary amount.")
+
+    except ValidationError as exc:
+        for error in getattr(exc, "messages", [str(exc)]):
+            messages.error(request, error)
+
+    return redirect("wallet_dashboard")
+
+
+
+class RegisterInvestor(View):
+
+    @staticmethod
+    def get(request):
+        form = InvestorInfoForm()
+
+        return render(
+            request,
+            "registration/register_investor.html",
+            {"form": form},
+        )
+
+    @staticmethod
+    def post(request):
+        form = InvestorInfoForm(request.POST)
+
+        if not form.is_valid():
+            messages.error(
+                request,
+                "Registration unsuccessful. Please correct the errors below.",
+            )
+            return render(
+                request,
+                "registration/register_investor.html",
+                {"form": form},
+            )
+
+        amount = form.cleaned_data["investor_investment"]
+        username = form.cleaned_data["investor_name"]
 
         try:
-            vault.transfer_to_trading_pool(pool, amount)
-            messages.success(request, f"Successfully transferred ${amount} to your Trading Pool.")
-        except ValidationError as e:
-            messages.error(request, e.message)
-
-    return redirect('wallet_dashboard')
-
-
-# def record_profit_trade_view(request, pool_id):
-    if request.method == "POST":
-        # Ensure the pool belongs to the logged-in user
-        trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)
-
-        # Extract form parameters
-        utility_traded = request.POST.get('utility_traded')
-        trade_direction = request.POST.get('trade_direction')
-        profit_value_raw = request.POST.get('profit_value', '0.00')
-        description = request.POST.get('description', '').strip()
-
-        try:
-            # Convert and sanitize the numeric input
-            profit_value = Decimal(str(profit_value_raw)).quantize(Decimal("0.01"))
-
-            if profit_value <= Decimal("0.00"):
-                messages.error(request, "Profit value must be greater than zero.")
-                return redirect('wallet_dashboard')
-
-            # Perform atomic updates to maintain data integrity
             with transaction.atomic():
-                # Lock the specific trading pool row during update
-                pool_to_update = TradingPool.objects.select_for_update().get(pk=trading_pool.pk)
 
-                # 1. Create the permanent trade log entry
-                ProfitTrade.objects.create(
-                    user=request.user,
-                    trading_pool=pool_to_update,
-                    utility_traded=utility_traded,
-                    trade_direction=trade_direction,
-                    profit_value=profit_value,
-                    description=description
-                )
+                # Validate the investment amount.
+                amount = Decimal(str(amount)).quantize(Decimal("0.01"))
 
-                # 2. Add the profit directly to the trading pool balance
-                pool_to_update.trading_pool_value += profit_value
-                pool_to_update.save(update_fields=['trading_pool_value', 'updated_at'])
-
-            messages.success(request, f"Successfully recorded profit of ${profit_value} for {utility_traded}.")
-
-        except (InvalidOperation, ValueError):
-            messages.error(request, "Invalid numeric format provided for profit value.")
-        except Exception as e:
-            messages.error(request, f"An unexpected error occurred: {str(e)}")
-
-    return redirect('wallet_dashboard')
-
-
-# def record_loss_trade_view(request, pool_id):
-    if request.method == "POST":
-        # Confirm pool belongs to logged-in user
-        trading_pool = get_object_or_404(TradingPool, pk=pool_id, user=request.user)
-
-        # Extract parameters
-        utility_traded = request.POST.get('utility_traded')
-        trade_direction = request.POST.get('trade_direction')
-        loss_value_raw = request.POST.get('loss_value', '0.00')
-        description = request.POST.get('description', '').strip()
-
-        try:
-            # Sanitize and convert numeric input
-            loss_value = Decimal(str(loss_value_raw)).quantize(Decimal("0.01"))
-
-            if loss_value <= Decimal("0.00"):
-                messages.error(request, "Loss amount must be greater than zero.")
-                return redirect('wallet_dashboard')
-
-            with transaction.atomic():
-                # Lock row to prevent race conditions during verification/deduction
-                pool_to_update = TradingPool.objects.select_for_update().get(pk=trading_pool.pk)
-
-                # Enforce protection against negative trading pool balances
-                if pool_to_update.trading_pool_value < loss_value:
-                    messages.error(
-                        request,
-                        f"Insufficient funds in pool. Current balance is ${pool_to_update.trading_pool_value}, "
-                        f"but tried to deduct a loss of ${loss_value}."
+                if not amount.is_finite() or amount <= Decimal("0.00"):
+                    raise ValidationError(
+                        "The initial investment must be greater than zero."
                     )
-                    return redirect('wallet_dashboard')
 
-                # 1. Create permanent loss ledger history entry
-                LossTrade.objects.create(
-                    user=request.user,
-                    trading_pool=pool_to_update,
-                    utility_traded=utility_traded,
-                    trade_direction=trade_direction,
-                    loss_value=loss_value,
-                    description=description
+                # Obtain or create the authenticated user's company vault.
+                # The contribution method handles locking and balance updates.
+                vault, _ = VaultEquity.objects.get_or_create(
+                    user=request.user
                 )
 
-                # 2. Safely deduct the loss from active balance
-                pool_to_update.trading_pool_value -= loss_value
-                pool_to_update.save(update_fields=['trading_pool_value', 'updated_at'])
+                # Create the investor without applying the initial investment
+                # directly, because contribute_to_vault() applies it.
+                investor = form.save(commit=False)
+                investor.investor_investment = Decimal("0.00")
+                investor.save()
 
-            messages.success(request, f"Recorded loss of ${loss_value} for {utility_traded}. Balance updated.")
+                # Update the investor's cumulative investment, credit the
+                # vault, and create the InvestorContribution history record.
+                contribution = investor.contribute_to_vault(
+                    vault=vault,
+                    amount=amount,
+                )
 
-        except (InvalidOperation, ValueError):
-            messages.error(request, "Invalid numeric format provided for loss value.")
-        except Exception as e:
-            messages.error(request, f"An unexpected processing error occurred: {str(e)}")
+                messages.success(
+                    request,
+                    (
+                        f"Investor {username} registered successfully. "
+                        f"Initial investment: ${amount:.2f}. "
+                        "The investment has been credited to the vault."
+                    ),
+                )
 
-    return redirect('wallet_dashboard')
+        except ValidationError as exc:
+            for error in getattr(exc, "messages", [str(exc)]):
+                messages.error(request, error)
+
+        except Exception:
+            # The atomic transaction rolls back database changes if an
+            # exception occurs. Avoid exposing internal exception details.
+            messages.error(
+                request,
+                "Investor registration failed. No investment was recorded.",
+            )
+
+        return redirect("wallet_dashboard")
+
+
+
+# @login_required
+# def investor_share_pool_view(request):
+#     """
+#     Display the investor share pool and allocate its balance
+#     when the user submits the distribution form.
+#     """
+
+#     share_pool = InvestorSharePool.objects.filter(
+#         user=request.user
+#     ).first()
+
+#     if request.method == "POST":
+#         if share_pool is None:
+#             messages.error(
+#                 request,
+#                 "Your investor share pool has not been created yet.",
+#             )
+#             return redirect("investor_share_pool")
+
+#         try:
+#             # The model method performs the allocation transaction.
+#             allocations = share_pool.distribute_to_investors()
+
+#             messages.success(
+#                 request,
+#                 f"Successfully allocated shares to {len(allocations)} "
+#                 "investor allocation record(s).",
+#             )
+
+#         except ValidationError as exc:
+#             for error in getattr(exc, "messages", [str(exc)]):
+#                 messages.error(request, error)
+
+#         return redirect("investor_share_pool")
+
+#     allocations = InvestorShareAllocation.objects.filter(
+#         share_pool__user=request.user
+#     ).select_related("investor", "share_pool")
+
+#     contributions = InvestorContribution.objects.filter(
+#         vault__user=request.user
+#     )
+
+#     contribution_total = contributions.aggregate(
+#         total=Sum("amount")
+#     )["total"] or Decimal("0.00")
+
+#     allocation_total = allocations.aggregate(
+#         total=Sum("amount")
+#     )["total"] or Decimal("0.00")
+
+#     context = {
+#         "share_pool": share_pool,
+#         "allocations": allocations,
+#         "contribution_total": contribution_total,
+#         "allocation_total": allocation_total,
+#     }
+
+#     return render(
+#         request,
+#         "investor_share_pool.html",
+#         context,
+#     )
+
+
+
+@login_required
+def investor_share_pool_view(request):
+    share_pool = InvestorSharePool.objects.filter(
+        user=request.user
+    ).first()
+
+    # Only allow allocation through POST.
+    if request.method == "POST":
+        if share_pool is None:
+            messages.error(
+                request,
+                "The investor share pool does not exist yet."
+            )
+            return redirect("investor_share_pool")
+
+        try:
+            allocations = share_pool.distribute_to_investors()
+
+            messages.success(
+                request,
+                f"Allocation completed. "
+                f"{len(allocations)} investor allocation record(s) created."
+            )
+
+        except ValidationError as exc:
+            for error in exc.messages:
+                messages.error(request, error)
+
+        return redirect("investor_share_pool")
+
+    # Only show contributions belonging to this user's vault.
+    contributions = InvestorContribution.objects.filter(
+        vault__user=request.user
+    )
+
+    contribution_total = (
+        contributions.aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+
+    # Show allocation records for this user's share pool only.
+    allocations = InvestorShareAllocation.objects.filter(
+        share_pool__user=request.user
+    ).select_related(
+        "investor",
+        "share_pool",
+    ).order_by("-distribution_date")
+
+    allocation_total = (
+        allocations.aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+
+    context = {
+        "share_pool": share_pool,
+        "contribution_total": contribution_total,
+        "allocation_total": allocation_total,
+        "allocations": allocations,
+    }
+
+    return render(
+        request,
+        "investor_share_pool.html",
+        context,
+    )

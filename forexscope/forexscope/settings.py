@@ -137,7 +137,7 @@ MAILERS = {
 LOGIN_URL = '/accounts/login/'
 
 # Where to redirect users after a successful login
-LOGIN_REDIRECT_URL = 'dashboard'  # Change this to '/dashboard/' or your preferred route
+LOGIN_REDIRECT_URL = '/dashboard/'  # Change this to '/dashboard/' or your preferred route
 
 # Where to redirect users after they log out
 LOGOUT_REDIRECT_URL = '/accounts/login/'

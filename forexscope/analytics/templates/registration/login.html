@@ -1,11 +1,396 @@
-<h2>Login to Your Account</h2>
 
-{% if form.errors %}
-  <p style="color: red;">Your username and password didn't match. Please try again.</p>
-{% endif %}
 
-<form method="post" action="{% url 'login' %}">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Login</button>
-</form>
+<style>
+    .login-page,
+    .login-page * {
+        box-sizing: border-box;
+    }
+
+    .login-page {
+        --login-green: #198754;
+        --login-green-dark: #146c43;
+        --login-text: #202b25;
+        --login-muted: #738078;
+        --login-border: #e3e9e5;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 75vh;
+        padding: 40px 20px;
+        color: var(--login-text);
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .login-page .login-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+        width: 100%;
+        max-width: 940px;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid var(--login-border);
+        border-radius: 18px;
+        box-shadow: 0 8px 35px rgba(26, 50, 35, 0.07);
+    }
+
+    .login-page .login-form-panel {
+        min-width: 0;
+        padding: 42px;
+    }
+
+    .login-page .login-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        margin-bottom: 24px;
+        border-radius: 14px;
+        color: var(--login-green);
+        background: #e9f5ee;
+        font-size: 21px;
+    }
+
+    .login-page h1 {
+        margin: 0;
+        color: var(--login-text);
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.35;
+        letter-spacing: -0.5px;
+    }
+
+    .login-page .login-subtitle {
+        margin: 9px 0 28px;
+        color: var(--login-muted);
+        font-size: 13px;
+        line-height: 1.7;
+    }
+
+    .login-page .login-field {
+        margin-bottom: 20px;
+    }
+
+    .login-page .login-field label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .login-page .login-field input {
+        display: block;
+        width: 100%;
+        min-height: 47px;
+        padding: 12px 14px;
+        border: 1px solid #dce4de;
+        border-radius: 9px;
+        background: #fff;
+        color: var(--login-text);
+        font-family: inherit;
+        font-size: 13px;
+        box-shadow: none;
+    }
+
+    .login-page .login-field input:focus {
+        outline: none;
+        border-color: var(--login-green);
+        box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.11);
+    }
+
+    .login-page .login-submit {
+        display: block;
+        width: 100%;
+        min-height: 47px;
+        margin-top: 8px;
+        border: 1px solid var(--login-green);
+        border-radius: 9px;
+        background: var(--login-green);
+        color: #fff;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .login-page .login-submit:hover {
+        background: var(--login-green-dark);
+        border-color: var(--login-green-dark);
+    }
+
+    .login-page .login-error {
+        margin-bottom: 20px;
+        padding: 12px 14px;
+        border: 1px solid #f2caca;
+        border-radius: 9px;
+        background: #fff1f1;
+        color: #a52834;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .login-page .login-help {
+        margin-top: 22px;
+        text-align: center;
+        color: var(--login-muted);
+        font-size: 12px;
+    }
+
+    .login-page .login-info-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 38px;
+        background: linear-gradient(145deg, #edf8f1, #f7fbf8);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-page .login-info-panel::after {
+        content: "";
+        position: absolute;
+        top: -65px;
+        right: -65px;
+        width: 190px;
+        height: 190px;
+        border-radius: 50%;
+        background: rgba(25, 135, 84, 0.07);
+    }
+
+    .login-page .login-info-content,
+    .login-page .login-info-footer {
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-page .login-info-panel h2 {
+        margin: 22px 0 12px;
+        color: #183b2a;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .login-page .login-info-panel p {
+        color: #607668;
+        font-size: 13px;
+        line-height: 1.8;
+    }
+
+    .login-page .login-benefit {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        margin-top: 24px;
+    }
+
+    .login-page .login-benefit-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: #dcefe3;
+        color: var(--login-green);
+    }
+
+    .login-page .login-benefit strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+    }
+
+    .login-page .login-benefit span {
+        display: block;
+        color: #607668;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .login-page .login-info-footer {
+        padding-top: 18px;
+        border-top: 1px solid #dcece2;
+        color: #607668;
+        font-size: 12px;
+    }
+
+    @media (max-width: 760px) {
+        .login-page {
+            min-height: auto;
+            padding: 24px 14px;
+        }
+
+        .login-page .login-card {
+            grid-template-columns: minmax(0, 1fr);
+            max-width: 480px;
+        }
+
+        .login-page .login-form-panel {
+            padding: 30px 24px;
+        }
+
+        .login-page .login-info-panel {
+            padding: 28px 24px;
+            gap: 28px;
+        }
+
+        .login-page h1 {
+            font-size: 23px;
+        }
+    }
+</style>
+
+<div class="login-page">
+    <div class="login-card">
+
+        <!-- Login form -->
+        <div class="login-form-panel">
+
+            <div class="login-icon">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <h1>Welcome Back</h1>
+            <p class="login-subtitle">
+                Sign in to access your wallet, investments, and portfolio dashboard.
+            </p>
+
+            {% if form.errors %}
+                <div class="login-error" role="alert">
+                    <i class="fa-solid fa-circle-exclamation me-2"></i>
+                    Your username or password is incorrect. Please try again.
+                </div>
+            {% endif %}
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{% if message.tags == 'success' %}success{% elif message.tags == 'error' %}danger{% else %}info{% endif %} small"
+                         role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}" autocomplete="on">
+                {% csrf_token %}
+
+                {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+
+                <div class="login-field">
+                    <label for="{{ form.username.id_for_label }}">Username</label>
+                    <input
+                        type="text"
+                        name="{{ form.username.html_name }}"
+                        id="{{ form.username.id_for_label }}"
+                        value="{{ form.username.value|default_if_none:'' }}"
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                        required
+                        autofocus
+                    >
+                    {% if form.username.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ form.username.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="login-field">
+                    <label for="{{ form.password.id_for_label }}">Password</label>
+                    <input
+                        type="password"
+                        name="{{ form.password.html_name }}"
+                        id="{{ form.password.id_for_label }}"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        required
+                    >
+                    {% if form.password.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ form.password.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if form.non_field_errors %}
+                    <div class="login-error" role="alert">
+                        {{ form.non_field_errors }}
+                    </div>
+                {% endif %}
+
+                <button type="submit" class="login-submit">
+                    <i class="fa-solid fa-right-to-bracket me-2"></i>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="login-help">
+                <i class="fa-solid fa-shield-halved me-1"></i>
+                Secure access to your investment dashboard.
+            </div>
+        </div>
+
+        <!-- Information panel -->
+        <aside class="login-info-panel">
+
+            <div class="login-info-content">
+                <div class="login-icon">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </div>
+
+                <h2>Your Investments, All in One Place</h2>
+
+                <p>
+                    Access your financial overview, manage investor records,
+                    and monitor portfolio performance from one dashboard.
+                </p>
+
+                <div class="login-benefit">
+                    <div class="login-benefit-icon">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                    <div>
+                        <strong>Wallet Overview</strong>
+                        <span>Review your available balance and transactions.</span>
+                    </div>
+                </div>
+
+                <div class="login-benefit">
+                    <div class="login-benefit-icon">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <strong>Investment Analytics</strong>
+                        <span>Understand your portfolio using clear visual reports.</span>
+                    </div>
+                </div>
+
+                <div class="login-benefit">
+                    <div class="login-benefit-icon">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div>
+                        <strong>Protected Access</strong>
+                        <span>Sign in with your authorized account credentials.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-info-footer">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Keep your account credentials confidential.
+            </div>
+
+        </aside>
+    </div>
+</div>

@@ -330,6 +330,74 @@
                 width: 100%;
             }
         }
+        
+        /* Analytics dashboard */
+        .analytics-section {
+            margin-top: 25px;
+        }
+
+        .analytics-heading {
+            margin: 0 0 6px;
+            font-size: 21px;
+        }
+
+        .analytics-description {
+            color: #6a737d;
+            font-size: 13px;
+            margin: 0 0 20px;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+        }
+
+        .chart-card h3 {
+            margin: 0 0 6px;
+            font-size: 16px;
+        }
+
+        .chart-subtitle {
+            color: #6a737d;
+            font-size: 12px;
+            margin: 0 0 18px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .chart-container.chart-small {
+            height: 260px;
+        }
+
+        @media (max-width: 900px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .chart-card {
+                padding: 14px;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
     </style>
 </head>
 
@@ -526,7 +594,74 @@
                 </div>
             {% endif %}
         </section>
+    </div>
 
+    
+<!-- 5. Financial Analytics -->
+<section class="analytics-section">
+    <h2 class="analytics-heading">Financial Analytics</h2>
+    <p class="analytics-description">
+        Analyze trading performance, account balances, asset profitability,
+        and investor contributions using recorded database transactions.
+    </p>
+
+    <div class="chart-grid">
+
+        <!-- Cumulative net P&L -->
+        <div class="chart-card">
+            <h3>Cumulative Net P&amp;L</h3>
+            <p class="chart-subtitle">
+                Running total of recorded profits minus recorded losses.
+            </p>
+            <div class="chart-container">
+                <canvas id="cumulativeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Daily profit versus loss -->
+        <div class="chart-card">
+            <h3>Profit vs. Loss</h3>
+            <p class="chart-subtitle">
+                Daily recorded trading results.
+            </p>
+            <div class="chart-container">
+                <canvas id="profitLossChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Account balance distribution -->
+        <div class="chart-card">
+            <h3>Account Balance Distribution</h3>
+            <p class="chart-subtitle">
+                Comparison of current vault, trading pool, and available
+                investor share pool balances.
+            </p>
+            <div class="chart-container chart-small">
+                <canvas id="accountChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Asset performance -->
+        <div class="chart-card">
+            <h3>Performance by Asset</h3>
+            <p class="chart-subtitle">
+                Aggregate profits and losses grouped by traded asset.
+            </p>
+            <div class="chart-container">
+                <canvas id="assetChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Investor contributions -->
+        <div class="chart-card">
+            <h3>Investor Contributions</h3>
+            <p class="chart-subtitle">
+                Top 10 investors ranked by total recorded contributions.
+            </p>
+            <div class="chart-container">
+                <canvas id="investorChart"></canvas>
+            </div>
+        </div>
         <!-- 4. Investor share pool summary -->
         <section class="card share-pool-card">
             <h3>Investor Share Pool</h3>
@@ -562,8 +697,377 @@
                 </a>
             </div>
         </section>
-
     </div>
+
+    <!-- Filter Period -->
+    <div class="card" style="margin-top: 25px; margin-bottom: 20px;">
+        <form method="get"
+            style="display: flex; flex-wrap: wrap; align-items: end; gap: 12px;">
+
+            <div class="form-group" style="margin: 0; min-width: 200px;">
+                <label for="period">Trading Performance Period</label>
+                <select id="period" name="period">
+                    {% for option in period_options %}
+                        <option value="{{ option.value }}"
+                            {% if selected_period == option.value %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Apply Filter
+            </button>
+
+            <a href="{% url 'wallet_dashboard' %}" class="btn btn-outline">
+                Reset
+            </a>
+        </form>
+    </div>
+    
+    <!-- Recent Trading Activity -->
+    <section class="analytics-section">
+        <div class="card">
+            <h3>Recent Trading Activity</h3>
+            <p class="analytics-description">
+                The latest recorded trades within the selected reporting period.
+            </p>
+
+            {% if recent_activity %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;
+                                font-size: 13px; white-space: nowrap;">
+                        <thead style="background: #f6f8fa;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left;">Date</th>
+                                <th style="padding: 12px; text-align: left;">Type</th>
+                                <th style="padding: 12px; text-align: left;">Asset</th>
+                                <th style="padding: 12px; text-align: left;">Direction</th>
+                                <th style="padding: 12px; text-align: right;">Amount</th>
+                                <th style="padding: 12px; text-align: left;">Description</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for trade in recent_activity %}
+                                <tr style="border-bottom: 1px solid #e1e4e8;">
+                                    <td style="padding: 12px;">
+                                        {{ trade.date|date:"d M Y, H:i" }}
+                                    </td>
+
+                                    <td style="padding: 12px;">
+                                        {% if trade.type == "PROFIT" %}
+                                            <span style="color: #218838; font-weight: 700;">
+                                                PROFIT
+                                            </span>
+                                        {% else %}
+                                            <span style="color: #cb2431; font-weight: 700;">
+                                                LOSS
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td style="padding: 12px;">{{ trade.asset }}</td>
+                                    <td style="padding: 12px;">{{ trade.direction }}</td>
+
+                                    <td style="padding: 12px; text-align: right;
+                                            font-weight: 700;">
+                                        {% if trade.type == "PROFIT" %}
+                                            <span style="color: #218838;">
+                                                +${{ trade.amount|floatformat:2 }}
+                                            </span>
+                                        {% else %}
+                                            <span style="color: #cb2431;">
+                                                -${{ trade.amount|floatformat:2 }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td style="padding: 12px;">
+                                        {{ trade.description|default:"—"|truncatechars:45 }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="muted">
+                    No trading activity is recorded for the selected period.
+                </p>
+            {% endif %}
+        </div>
+    </section>
+</section>
+
+
+    <!-- Safely serialize Django chart data -->
+    {{ chart_data|json_script:"chart-data" }}
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const dataElement = document.getElementById("chart-data");
+
+        if (!dataElement || typeof Chart === "undefined") {
+            return;
+        }
+
+        const data = JSON.parse(dataElement.textContent);
+
+        const moneyTooltip = {
+            callbacks: {
+                label: function (context) {
+                    const value = Number(context.parsed.y ?? context.parsed ?? 0);
+                    return context.dataset.label + ": $" +
+                        value.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
+                }
+            }
+        };
+
+        const moneyAxis = {
+            ticks: {
+                callback: function (value) {
+                    return "$" + Number(value).toLocaleString();
+                }
+            }
+        };
+
+        // 1. Cumulative net P&L
+        new Chart(document.getElementById("cumulativeChart"), {
+            type: "line",
+            data: {
+                labels: data.daily.labels,
+                datasets: [{
+                    label: "Cumulative Net P&L",
+                    data: data.daily.cumulative,
+                    borderColor: "#0366d6",
+                    backgroundColor: "rgba(3, 102, 214, 0.12)",
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: "index"
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: moneyTooltip
+                },
+                scales: {
+                    y: {
+                        ...moneyAxis,
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: "Net P&L ($)"
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Trade date"
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Daily profit versus loss
+        new Chart(document.getElementById("profitLossChart"), {
+            type: "bar",
+            data: {
+                labels: data.daily.labels,
+                datasets: [
+                    {
+                        label: "Profit",
+                        data: data.daily.profits,
+                        backgroundColor: "#218838",
+                        borderRadius: 4
+                    },
+                    {
+                        label: "Loss",
+                        data: data.daily.losses.map(value => -value),
+                        backgroundColor: "#cb2431",
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return context.dataset.label + ": $" +
+                                    Math.abs(context.parsed.y).toLocaleString(
+                                        undefined,
+                                        {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
+                                    );
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        ...moneyAxis,
+                        title: {
+                            display: true,
+                            text: "Amount ($); losses shown below zero"
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Trade date"
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Current account balances
+        new Chart(document.getElementById("accountChart"), {
+            type: "doughnut",
+            data: {
+                labels: data.accounts.labels,
+                datasets: [{
+                    data: data.accounts.balances,
+                    backgroundColor: [
+                        "#0366d6",
+                        "#218838",
+                        "#6f42c1"
+                    ],
+                    borderWidth: 2,
+                    borderColor: "#ffffff"
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return context.label + ": $" +
+                                    Number(context.parsed).toLocaleString(
+                                        undefined,
+                                        {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
+                                    );
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 4. Profit and loss by asset
+        new Chart(document.getElementById("assetChart"), {
+            type: "bar",
+            data: {
+                labels: data.assets.labels,
+                datasets: [
+                    {
+                        label: "Profit",
+                        data: data.assets.profits,
+                        backgroundColor: "#218838",
+                        borderRadius: 4
+                    },
+                    {
+                        label: "Loss",
+                        data: data.assets.losses.map(value => -value),
+                        backgroundColor: "#cb2431",
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return context.dataset.label + ": $" +
+                                    Math.abs(context.parsed.y).toLocaleString(
+                                        undefined,
+                                        {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
+                                    );
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        ...moneyAxis,
+                        title: {
+                            display: true,
+                            text: "Amount ($); losses shown below zero"
+                        }
+                    }
+                }
+            }
+        });
+
+        // 5. Investor contributions
+        new Chart(document.getElementById("investorChart"), {
+            type: "bar",
+            data: {
+                labels: data.investors.labels,
+                datasets: [{
+                    label: "Contributions",
+                    data: data.investors.contributions,
+                    backgroundColor: "#c2188b",
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: moneyTooltip
+                },
+                scales: {
+                    x: {
+                        ...moneyAxis,
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+    </script>
 
     <p class="footer-note">
         Trading Wallet Management System

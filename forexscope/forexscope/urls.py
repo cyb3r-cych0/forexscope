@@ -18,25 +18,9 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include  # <-- Make sure 'include' is imported
-from analytics import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('analytics.urls')),  # <-- Routes empty path requests to your app
     path('accounts/', include('django.contrib.auth.urls'))
 ]
-
-
-# from django.contrib import admin
-# from django.urls import path, include
-# from analytics import views
-
-# urlpatterns = [
-
-#     path('wallet_dashboard/', views.wallet_dashboard, name='wallet_dashboard'),
-#     path('vault/<int:vault_id>/add-equity/', views.add_equity_view, name='add_equity'),
-#     path('vault/<int:vault_id>/transfer/', views.transfer_to_pool_view, name='transfer_to_pool'),
-#     path('pool/<int:pool_id>/record-profit/', views.record_profit_trade_view, name='record_profit_trade'),
-#     path('pool/<int:pool_id>/record-loss/', views.record_loss_trade_view, name='record_loss_trade'),
-    
-# ]

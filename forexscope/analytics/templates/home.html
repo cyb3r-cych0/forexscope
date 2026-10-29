@@ -1,3 +1,112 @@
+
+<div class="auth-navigation">
+
+    {% if user.is_authenticated %}
+
+        <span class="auth-user">
+            <i class="fa-solid fa-circle-user"></i>
+            {{ user.username }}
+        </span>
+
+        <form method="post" action="{% url 'logout' %}" class="logout-form">
+            {% csrf_token %}
+            <button type="submit" class="auth-btn auth-btn-logout">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                Logout
+            </button>
+        </form>
+
+    {% else %}
+
+        <a href="{% url 'login' %}" class="auth-btn auth-btn-login">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            Login
+        </a>
+
+        <a href="{% url 'register_investor' %}" class="auth-btn auth-btn-register">
+            <i class="fa-solid fa-user-plus"></i>
+            Register
+        </a>
+
+    {% endif %}
+
+</div>
+
+<style>
+    .auth-navigation {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .auth-user {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-right: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bs-body-color, #26332b);
+    }
+
+    .auth-user i {
+        color: #198754;
+        font-size: 19px;
+    }
+
+    .auth-navigation .logout-form {
+        display: inline-flex;
+        margin: 0;
+    }
+
+    .auth-navigation .auth-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 9px 15px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.4;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .auth-navigation .auth-btn-login,
+    .auth-navigation .auth-btn-logout {
+        color: #fff;
+        background: #198754;
+        border-color: #198754;
+    }
+
+    .auth-navigation .auth-btn-login:hover,
+    .auth-navigation .auth-btn-logout:hover {
+        color: #fff;
+        background: #146c43;
+        border-color: #146c43;
+    }
+
+    .auth-navigation .auth-btn-register {
+        color: #198754;
+        background: transparent;
+        border-color: #198754;
+    }
+
+    .auth-navigation .auth-btn-register:hover {
+        color: #fff;
+        background: #198754;
+    }
+</style>
+
+
 <a href="{% url 'wallet_dashboard' %}">
     <button>
         Wallet

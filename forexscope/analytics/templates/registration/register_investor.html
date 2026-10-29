@@ -1,60 +1,521 @@
+
 {% load crispy_forms_tags %}
 
+<style>
+    .registration-page,
+    .registration-page * {
+        box-sizing: border-box;
+    }
 
-<div class="container col-md-9 mt-5 mb-5" style="width: 95%; font-size: 14px">
+    .registration-page {
+        --reg-green: #198754;
+        --reg-green-dark: #146c43;
+        --reg-text: #202b25;
+        --reg-muted: #738078;
+        --reg-border: #e3e9e5;
+        --reg-surface: #ffffff;
 
-    <!-- Register Form -->
-    <div class="container py-5 mt-3 col-lg-12" >
-        <!-- Message From BackEnd -->
-            {% for message in messages %}
-                {% if message.tags == 'success' %}
-                    <div class="text-center alert alert-primary alert-dismissible fade show" role="alert">{{ message }}
-                        <a href="#" type="button" class="btn btn-close" data-bs-dismiss="alert" aria-label="Close"></a>
-                    </div>
-                {% elif message.tags == 'error' %}
-                    <div class="text-center alert alert-primary alert-dismissible fade show" role="alert">{{ message }}
-                        <a href="#" type="button" class="btn btn-close" data-bs-dismiss="alert" aria-label="Close"></a>
-                    </div>
-                {% endif %}
-            {% endfor%}
-        <div class="col">
-            <div class="card mb-5 rounded-3 shadow-lg border-0">
-              <div class="card-header py-3 text-bg-success border-0">
-                <h6 class="my-0 fw-normal" style="color: white;">
-                    <i class="fa fa-user">&nbsp;&nbsp;ENTER &nbsp;INVESTOR &nbsp;DETAILS</i>
-                </h6>
-              </div>
-            <div class="row mt-5">
-                <div class="col-md-6">
-                    <div class="container card p-3 border-0 shadow-lg mt-1 mb-5" style="width: 95%;">
-                        <div class="text-center mb-3 mt-1"><h5><i class="fa-solid fa-user-pen">&nbsp;NEW &nbsp;INVESTOR &nbsp;DETAILS</i></h5></div>
-                            <form method="POST" autocomplete="off" novalidate>
-                                {% csrf_token %}
-                                <div class="row">
-                                    <div class="col-12 mt-2">
-                                        {{ form.investor_name|as_crispy_field }}
-                                    </div>
-                                    <div class="col-6 mt-2">
-                                        {{ form.investor_email|as_crispy_field }}
-                                    </div>
-                                    <div class="col-6 mt-2">
-                                        {{ form.investor_phone|as_crispy_field }}
-                                    </div>
-                                    <div class="col-12 mt-2">
-                                        {{ form.investor_investment|as_crispy_field }}
-                                    </div>
-                                </div>
-                                <button type="submit" class="w-100 btn btn-success mt-2 rounded-pill">
-                                    <i class="fa-solid fa-user-plus">&nbsp;&nbsp;REGISTER</i>
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                <div class="col-md-6">
-                    <img src="#" alt="Image" style="width: 550px; height: 400px; padding: 1rem;" >
-                </div>
-            </div>
+        width: 100%;
+        padding: 32px clamp(16px, 3vw, 40px) 48px;
+        color: var(--reg-text);
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .registration-page h1,
+    .registration-page h2,
+    .registration-page h3,
+    .registration-page h4,
+    .registration-page h5,
+    .registration-page p {
+        font-family: inherit;
+    }
+
+    .registration-page .reg-page-heading {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 26px;
+    }
+
+    .registration-page .reg-icon {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        color: var(--reg-green);
+        background: #e9f5ee;
+        font-size: 20px;
+    }
+
+    .registration-page .reg-page-heading h1 {
+        margin: 0;
+        font-size: clamp(22px, 2vw, 27px);
+        line-height: 1.3;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+    }
+
+    .registration-page .reg-page-heading p {
+        margin: 5px 0 0;
+        font-size: 13px;
+        color: var(--reg-muted);
+    }
+
+    .registration-page .reg-alert {
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        border: 1px solid var(--reg-border);
+        border-radius: 10px;
+        font-size: 13px;
+    }
+
+    .registration-page .reg-card {
+        width: 100%;
+        overflow: hidden;
+        background: var(--reg-surface);
+        border: 1px solid var(--reg-border);
+        border-radius: 16px;
+        box-shadow: 0 5px 24px rgba(26, 50, 35, 0.055);
+    }
+
+    .registration-page .reg-card-header {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 22px 26px;
+        border-bottom: 1px solid var(--reg-border);
+    }
+
+    .registration-page .reg-card-header .reg-icon {
+        width: 42px;
+        height: 42px;
+        flex-basis: 42px;
+        font-size: 17px;
+    }
+
+    .registration-page .reg-card-header h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .registration-page .reg-card-header p {
+        margin: 4px 0 0;
+        color: var(--reg-muted);
+        font-size: 12px;
+    }
+
+    .registration-page .reg-content {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.85fr);
+        align-items: stretch;
+        gap: 30px;
+        padding: 28px;
+    }
+
+    .registration-page .reg-form-column {
+        min-width: 0;
+    }
+
+    .registration-page .reg-section-title {
+        margin: 0 0 5px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .registration-page .reg-section-description {
+        margin: 0 0 24px;
+        color: var(--reg-muted);
+        font-size: 12px;
+    }
+
+    .registration-page .reg-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 20px;
+    }
+
+    .registration-page .reg-field {
+        min-width: 0;
+    }
+
+    .registration-page .reg-field.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .registration-page .reg-fields label {
+        display: block;
+        margin: 0 0 8px;
+        font-size: 12px;
+        line-height: 1.4;
+        font-weight: 600;
+        color: var(--reg-text);
+    }
+
+    .registration-page .reg-fields input,
+    .registration-page .reg-fields select,
+    .registration-page .reg-fields textarea,
+    .registration-page .reg-fields .form-control,
+    .registration-page .reg-fields .form-select {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-height: 46px;
+        padding: 11px 13px;
+        border: 1px solid #dce4de;
+        border-radius: 9px;
+        background-color: #fff;
+        color: var(--reg-text);
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.5;
+        box-shadow: none;
+    }
+
+    .registration-page .reg-fields textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .registration-page .reg-fields input:focus,
+    .registration-page .reg-fields select:focus,
+    .registration-page .reg-fields textarea:focus {
+        outline: none;
+        border-color: var(--reg-green);
+        box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.11);
+    }
+
+    .registration-page .reg-fields .form-text,
+    .registration-page .reg-fields .helptext {
+        display: block;
+        margin-top: 6px;
+        color: var(--reg-muted);
+        font-size: 11px;
+    }
+
+    .registration-page .reg-fields .invalid-feedback,
+    .registration-page .reg-fields .text-danger,
+    .registration-page .reg-fields .errorlist {
+        color: #c0392b;
+        font-size: 12px;
+    }
+
+    .registration-page .reg-fields .errorlist {
+        padding-left: 18px;
+        margin: 5px 0;
+    }
+
+    .registration-page .reg-fields .mb-3 {
+        margin-bottom: 0 !important;
+    }
+
+    .registration-page .reg-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 26px;
+    }
+
+    .registration-page .reg-button {
+        min-height: 45px;
+        padding: 11px 20px;
+        border-radius: 9px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .registration-page .reg-button-primary {
+        flex: 1;
+        color: #fff;
+        background: var(--reg-green);
+        border: 1px solid var(--reg-green);
+    }
+
+    .registration-page .reg-button-primary:hover {
+        background: var(--reg-green-dark);
+        border-color: var(--reg-green-dark);
+    }
+
+    .registration-page .reg-button-secondary {
+        color: #49554d;
+        background: #fff;
+        border: 1px solid #dce4de;
+    }
+
+    .registration-page .reg-button-secondary:hover {
+        background: #f4f7f5;
+    }
+
+    .registration-page .reg-info-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 24px;
+        min-width: 0;
+        padding: 30px;
+        overflow: hidden;
+        border: 1px solid #e0f0e6;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #edf8f1 0%, #f8fbf9 100%);
+    }
+
+    .registration-page .reg-info-panel::after {
+        content: "";
+        position: absolute;
+        top: -65px;
+        right: -65px;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        background: rgba(25, 135, 84, 0.07);
+        pointer-events: none;
+    }
+
+    .registration-page .reg-info-content {
+        position: relative;
+        z-index: 1;
+    }
+
+    .registration-page .reg-info-panel h3 {
+        margin: 20px 0 10px;
+        font-size: 21px;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .registration-page .reg-info-panel .reg-info-description {
+        margin: 0;
+        color: #607668;
+        font-size: 13px;
+        line-height: 1.8;
+    }
+
+    .registration-page .reg-feature {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .registration-page .reg-feature-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 10px;
+        background: #dcefe3;
+        color: var(--reg-green);
+    }
+
+    .registration-page .reg-feature strong {
+        display: block;
+        margin: 0 0 4px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .registration-page .reg-feature span {
+        display: block;
+        color: #607668;
+        font-size: 12px;
+        line-height: 1.65;
+    }
+
+    .registration-page .reg-info-footer {
+        position: relative;
+        z-index: 1;
+        padding-top: 18px;
+        border-top: 1px solid #dcece2;
+        color: #607668;
+        font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+        .registration-page .reg-content {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .registration-page .reg-info-panel {
+            min-height: 350px;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .registration-page {
+            padding: 22px 14px 32px;
+        }
+
+        .registration-page .reg-card-header {
+            padding: 18px;
+        }
+
+        .registration-page .reg-content {
+            padding: 20px 16px;
+            gap: 24px;
+        }
+
+        .registration-page .reg-fields {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 16px;
+        }
+
+        .registration-page .reg-field.full-width {
+            grid-column: auto;
+        }
+
+        .registration-page .reg-info-panel {
+            padding: 22px;
+        }
+
+        .registration-page .reg-actions {
+            flex-direction: column;
+        }
+
+        .registration-page .reg-button {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="registration-page">
+
+    <div class="reg-page-heading">
+        <div class="reg-icon">
+            <i class="fa-solid fa-user-plus"></i>
         </div>
+        <div>
+            <h1>Investor Registration</h1>
+            <p>Register a new investor and record their investment details.</p>
         </div>
     </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'success' %}success{% elif message.tags == 'error' %}danger{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show reg-alert"
+                 role="alert">
+                {{ message }}
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <section class="reg-card">
+
+        <div class="reg-card-header">
+            <div class="reg-icon">
+                <i class="fa-solid fa-address-card"></i>
+            </div>
+            <div>
+                <h2>New Investor Details</h2>
+                <p>Enter the investor's information below.</p>
+            </div>
+        </div>
+
+        <div class="reg-content">
+
+            <div class="reg-form-column">
+                <h3 class="reg-section-title">Investor Information</h3>
+                <p class="reg-section-description">
+                    Provide accurate contact details and the initial investment amount.
+                </p>
+
+                <form method="POST" autocomplete="off" novalidate>
+                    {% csrf_token %}
+
+                    <div class="reg-fields">
+                        <div class="reg-field full-width">
+                            {{ form.investor_name|as_crispy_field }}
+                        </div>
+
+                        <div class="reg-field">
+                            {{ form.investor_email|as_crispy_field }}
+                        </div>
+
+                        <div class="reg-field">
+                            {{ form.investor_phone|as_crispy_field }}
+                        </div>
+
+                        <div class="reg-field full-width">
+                            {{ form.investor_investment|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    <div class="reg-actions">
+                        <button type="submit" class="reg-button reg-button-primary">
+                            <i class="fa-solid fa-user-check me-2"></i>
+                            Register Investor
+                        </button>
+
+                        <button type="reset" class="reg-button reg-button-secondary">
+                            <i class="fa-solid fa-rotate-left me-2"></i>
+                            Reset
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <aside class="reg-info-panel">
+                <div class="reg-info-content">
+                    <div class="reg-icon">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+
+                    <h3>Build Your Investor Portfolio</h3>
+                    <p class="reg-info-description">
+                        Maintain organized investor records and establish a reliable
+                        foundation for tracking investments and monitoring portfolio
+                        performance.
+                    </p>
+
+                    <div class="reg-feature">
+                        <div class="reg-feature-icon">
+                            <i class="fa-solid fa-id-card"></i>
+                        </div>
+                        <div>
+                            <strong>Investor Records</strong>
+                            <span>Keep identity and contact information organized.</span>
+                        </div>
+                    </div>
+
+                    <div class="reg-feature">
+                        <div class="reg-feature-icon">
+                            <i class="fa-solid fa-wallet"></i>
+                        </div>
+                        <div>
+                            <strong>Investment Tracking</strong>
+                            <span>Record initial investments for portfolio management.</span>
+                        </div>
+                    </div>
+
+                    <div class="reg-feature">
+                        <div class="reg-feature-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div>
+                            <strong>Reliable Reporting</strong>
+                            <span>Maintain consistent records for financial analysis.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="reg-info-footer">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    Verify investor details before submitting.
+                </div>
+            </aside>
+
+        </div>
+    </section>
 </div>

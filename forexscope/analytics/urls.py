@@ -9,6 +9,7 @@ urlpatterns = [
     path('vault/<int:vault_id>/add-equity/', views.add_equity_view, name='add_equity'),
     path('vault/<int:vault_id>/transfer/', views.transfer_to_pool_view, name='transfer_to_pool'),
     path('registration/register_investor/',views.RegisterInvestor.as_view(),name='register_investor'),
-    path("investor-share-pool/", views.investor_share_pool_view, name="investor_share_pool",),
+    path("investors/investor-share-pool/", views.investor_share_pool_view, name="investor_share_pool",),
+    path("funds/vault_pool_share/", views.vault_pool_share_view, name="vault_pool_share",),
     
 ]

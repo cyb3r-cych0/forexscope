@@ -1,1078 +1,1145 @@
- {% load compress %}
+{% load compress %}
 {% load static %}
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Wallet Dashboard</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            background: #f4f6f9;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                         sans-serif;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 35px auto;
-            padding: 0 20px;
-        }
-
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .page-header h2 {
-            margin: 0 0 5px;
-        }
-
-        .page-header p {
-            margin: 0;
-            color: #6a737d;
-            font-size: 14px;
-        }
-
-        .grid-stats {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .stat-card {
-            border: 1px solid #e1e4e8;
-            padding: 20px 15px;
-            border-radius: 8px;
-            background: #fff;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
-        }
-
-        .stat-label {
-            font-size: 13px;
-            color: #586069;
-        }
-
-        .stat-val {
-            font-size: 23px;
-            font-weight: 700;
-            margin-top: 8px;
-            color: #0366d6;
-            overflow-wrap: anywhere;
-        }
-
-        .grid-main {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 22px;
-            align-items: start;
-        }
-
-        .card {
-            border: 1px solid #e1e4e8;
-            padding: 22px;
-            border-radius: 8px;
-            background: #fff;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
-            min-width: 0;
-        }
-
-        .card h3 {
-            margin: 0 0 18px;
-            font-size: 18px;
-        }
-
-        .account-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 13px 0;
-            border-bottom: 1px solid #eaecef;
-        }
-
-        .account-row:last-of-type {
-            border-bottom: none;
-        }
-
-        .account-label {
-            font-size: 14px;
-            color: #586069;
-        }
-
-        .account-value {
-            font-weight: 700;
-            text-align: right;
-            overflow-wrap: anywhere;
-        }
-
-        .blue {
-            color: #0366d6;
-        }
-
-        .green {
-            color: #218838;
-        }
-
-        .purple {
-            color: #6f42c1;
-        }
-
-        .pink {
-            color: #c2188b;
-        }
-
-        .muted {
-            color: #6a737d;
-        }
-
-        .form-group {
-            margin-bottom: 14px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #586069;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #d1d5da;
-            border-radius: 5px;
-            font-size: 14px;
-            background: #fff;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #0366d6;
-            box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.12);
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 10px 14px;
-            background: #2f363d;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-weight: 600;
-            font-size: 13px;
-            text-decoration: none;
-            text-align: center;
-            cursor: pointer;
-        }
-
-        .btn:hover {
-            background: #24292e;
-            color: #fff;
-        }
-
-        .btn-primary {
-            background: #0366d6;
-        }
-
-        .btn-primary:hover {
-            background: #0256b9;
-        }
-
-        .btn-outline {
-            background: #fff;
-            color: #0366d6;
-            border: 1px solid #0366d6;
-        }
-
-        .btn-outline:hover {
-            background: #f1f8ff;
-            color: #0256b9;
-        }
-
-        .btn-full {
-            width: 100%;
-            margin-top: 5px;
-        }
-
-        .account-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .section-description {
-            color: #6a737d;
-            font-size: 13px;
-            line-height: 1.5;
-            margin-top: -8px;
-            margin-bottom: 18px;
-        }
-
-        .messages {
-            list-style: none;
-            padding: 0;
-            margin: 0 0 20px;
-        }
-
-        .message {
-            padding: 12px 14px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-
-        .success {
-            background: #dcffe4;
-            color: #155724;
-        }
-
-        .error {
-            background: #ffeef0;
-            color: #721c24;
-        }
-
-        .warning {
-            background: #fff5b1;
-            color: #735c0f;
-        }
-
-        .info {
-            background: #eaf5ff;
-            color: #084b83;
-        }
-
-        .notice {
-            padding: 12px;
-            border-radius: 5px;
-            background: #f6f8fa;
-            color: #586069;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .share-pool-card {
-            border-left: 4px solid #6f42c1;
-        }
-
-        .share-pool-card .account-value {
-            color: #6f42c1;
-        }
-
-        .footer-note {
-            margin-top: 24px;
-            color: #6a737d;
-            font-size: 12px;
-            text-align: center;
-        }
-
-        @media (max-width: 900px) {
-            .grid-stats {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Trading Wallet Dashboard</title>
+        <style>
+            * {
+                box-sizing: border-box;
             }
 
-            .grid-main {
-                grid-template-columns: 1fr;
+            body {
+                margin: 0;
+                background: #f4f6f9;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                            sans-serif;
+                color: #333;
             }
-        }
 
-        @media (max-width: 480px) {
             .container {
-                margin: 20px auto;
-                padding: 0 12px;
+                max-width: 1200px;
+                margin: 35px auto;
+                padding: 0 20px;
+            }
+
+            .page-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 15px;
+                margin-bottom: 25px;
+            }
+
+            .page-header h2 {
+                margin: 0 0 5px;
+            }
+
+            .page-header p {
+                margin: 0;
+                color: #6a737d;
+                font-size: 14px;
             }
 
             .grid-stats {
-                gap: 10px;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 15px;
+                margin-bottom: 25px;
             }
 
             .stat-card {
-                padding: 15px 8px;
+                border: 1px solid #e1e4e8;
+                padding: 20px 15px;
+                border-radius: 8px;
+                background: #fff;
+                text-align: center;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+            }
+
+            .stat-label {
+                font-size: 13px;
+                color: #586069;
             }
 
             .stat-val {
-                font-size: 19px;
+                font-size: 23px;
+                font-weight: 700;
+                margin-top: 8px;
+                color: #0366d6;
+                overflow-wrap: anywhere;
+            }
+
+            .grid-main {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 22px;
+                align-items: start;
             }
 
             .card {
-                padding: 16px;
+                border: 1px solid #e1e4e8;
+                padding: 22px;
+                border-radius: 8px;
+                background: #fff;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+                min-width: 0;
+            }
+
+            .card h3 {
+                margin: 0 0 18px;
+                font-size: 18px;
             }
 
             .account-row {
-                flex-direction: column;
-                gap: 5px;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 13px 0;
+                border-bottom: 1px solid #eaecef;
+            }
+
+            .account-row:last-of-type {
+                border-bottom: none;
+            }
+
+            .account-label {
+                font-size: 14px;
+                color: #586069;
             }
 
             .account-value {
-                text-align: left;
+                font-weight: 700;
+                text-align: right;
+                overflow-wrap: anywhere;
             }
 
-            .account-actions .btn {
+            .blue {
+                color: #0366d6;
+            }
+
+            .green {
+                color: #218838;
+            }
+
+            .purple {
+                color: #6f42c1;
+            }
+
+            .pink {
+                color: #c2188b;
+            }
+
+            .muted {
+                color: #6a737d;
+            }
+
+            .form-group {
+                margin-bottom: 14px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .form-group label {
+                font-size: 13px;
+                font-weight: 600;
+                margin-bottom: 6px;
+                color: #586069;
+            }
+
+            .form-group input,
+            .form-group select {
                 width: 100%;
+                padding: 10px;
+                border: 1px solid #d1d5da;
+                border-radius: 5px;
+                font-size: 14px;
+                background: #fff;
             }
-        }
-        
-        /* Analytics dashboard */
-        .analytics-section {
-            margin-top: 25px;
-        }
 
-        .analytics-heading {
-            margin: 0 0 6px;
-            font-size: 21px;
-        }
+            .form-group input:focus,
+            .form-group select:focus {
+                outline: none;
+                border-color: #0366d6;
+                box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.12);
+            }
 
-        .analytics-description {
-            color: #6a737d;
-            font-size: 13px;
-            margin: 0 0 20px;
-        }
+            .btn {
+                display: inline-block;
+                padding: 10px 14px;
+                background: #2f363d;
+                color: #fff;
+                border: none;
+                border-radius: 5px;
+                font-weight: 600;
+                font-size: 13px;
+                text-decoration: none;
+                text-align: center;
+                cursor: pointer;
+            }
 
-        .chart-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 20px;
-        }
+            .btn:hover {
+                background: #24292e;
+                color: #fff;
+            }
 
-        .chart-card {
-            background: #fff;
-            border: 1px solid #e1e4e8;
-            border-radius: 8px;
-            padding: 20px;
-            min-width: 0;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
-        }
+            .btn-primary {
+                background: #0366d6;
+            }
 
-        .chart-card h3 {
-            margin: 0 0 6px;
-            font-size: 16px;
-        }
+            .btn-primary:hover {
+                background: #0256b9;
+            }
 
-        .chart-subtitle {
-            color: #6a737d;
-            font-size: 12px;
-            margin: 0 0 18px;
-        }
+            .btn-outline {
+                background: #fff;
+                color: #0366d6;
+                border: 1px solid #0366d6;
+            }
 
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
-        }
+            .btn-outline:hover {
+                background: #f1f8ff;
+                color: #0256b9;
+            }
 
-        .chart-container.chart-small {
-            height: 260px;
-        }
+            .btn-full {
+                width: 100%;
+                margin-top: 5px;
+            }
 
-        @media (max-width: 900px) {
+            .account-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 18px;
+            }
+
+            .section-description {
+                color: #6a737d;
+                font-size: 13px;
+                line-height: 1.5;
+                margin-top: -8px;
+                margin-bottom: 18px;
+            }
+
+            .messages {
+                list-style: none;
+                padding: 0;
+                margin: 0 0 20px;
+            }
+
+            .message {
+                padding: 12px 14px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+
+            .success {
+                background: #dcffe4;
+                color: #155724;
+            }
+
+            .error {
+                background: #ffeef0;
+                color: #721c24;
+            }
+
+            .warning {
+                background: #fff5b1;
+                color: #735c0f;
+            }
+
+            .info {
+                background: #eaf5ff;
+                color: #084b83;
+            }
+
+            .notice {
+                padding: 12px;
+                border-radius: 5px;
+                background: #f6f8fa;
+                color: #586069;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .share-pool-card {
+                border-left: 4px solid #6f42c1;
+            }
+
+            .share-pool-card .account-value {
+                color: #6f42c1;
+            }
+
+            .footer-note {
+                margin-top: 24px;
+                color: #6a737d;
+                font-size: 12px;
+                text-align: center;
+            }
+
+            @media (max-width: 900px) {
+                .grid-stats {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .grid-main {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .container {
+                    margin: 20px auto;
+                    padding: 0 12px;
+                }
+
+                .grid-stats {
+                    gap: 10px;
+                }
+
+                .stat-card {
+                    padding: 15px 8px;
+                }
+
+                .stat-val {
+                    font-size: 19px;
+                }
+
+                .card {
+                    padding: 16px;
+                }
+
+                .account-row {
+                    flex-direction: column;
+                    gap: 5px;
+                }
+
+                .account-value {
+                    text-align: left;
+                }
+
+                .account-actions .btn {
+                    width: 100%;
+                }
+            }
+            
+            /* Analytics dashboard */
+            .analytics-section {
+                margin-top: 25px;
+            }
+
+            .analytics-heading {
+                margin: 0 0 6px;
+                font-size: 21px;
+            }
+
+            .analytics-description {
+                color: #6a737d;
+                font-size: 13px;
+                margin: 0 0 20px;
+            }
+
             .chart-grid {
-                grid-template-columns: 1fr;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 20px;
             }
-        }
 
-        @media (max-width: 480px) {
             .chart-card {
-                padding: 14px;
+                background: #fff;
+                border: 1px solid #e1e4e8;
+                border-radius: 8px;
+                padding: 20px;
+                min-width: 0;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+            }
+
+            .chart-card h3 {
+                margin: 0 0 6px;
+                font-size: 16px;
+            }
+
+            .chart-subtitle {
+                color: #6a737d;
+                font-size: 12px;
+                margin: 0 0 18px;
             }
 
             .chart-container {
-                height: 250px;
+                position: relative;
+                height: 300px;
+                width: 100%;
             }
-        }
-    </style>
-</head>
 
-<body>
-<div class="container">
+            .chart-container.chart-small {
+                height: 260px;
+            }
 
-    <!-- Dashboard heading -->
-    <header class="page-header">
-        <div>
-            <h2>Trading Operations Dashboard</h2>
-            <p>Monitor balances, trading performance and investor allocations.</p>
-        </div>
+            @media (max-width: 900px) {
+                .chart-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
 
-        <a href="{% url 'investor_share_pool' %}" class="btn btn-primary">
-            Manage Investor Shares
-        </a>
-    </header>
+            @media (max-width: 480px) {
+                .chart-card {
+                    padding: 14px;
+                }
 
-    <!-- System messages -->
-    {% if messages %}
-        <ul class="messages">
-            {% for message in messages %}
-                <li class="message
-                    {% if 'success' in message.tags %}success
-                    {% elif 'error' in message.tags %}error
-                    {% elif 'warning' in message.tags %}warning
-                    {% else %}info{% endif %}">
-                    {{ message }}
-                </li>
-            {% endfor %}
-        </ul>
-    {% endif %}
+                .chart-container {
+                    height: 250px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
 
-    <!-- 1. Trading performance statistics -->
-    <section class="grid-stats">
-
-        <div class="stat-card">
-            <div class="stat-label">Total Trades</div>
-            <div class="stat-val">{{ stats.total_trades|default:0 }}</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-label">Win Rate</div>
-            <div class="stat-val"
-                 style="color: {% if stats.win_rate >= 50 %}#218838{% else %}#cb2431{% endif %};">
-                {{ stats.win_rate|floatformat:2 }}%
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-label">Profit/Loss Ratio</div>
-            <div class="stat-val">
-                {{ stats.profit_loss_ratio|floatformat:2 }}
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-label">Net PnL</div>
-            <div class="stat-val"
-                 style="color: {% if stats.net_profit >= 0 %}#218838{% else %}#cb2431{% endif %};">
-                ${{ stats.net_profit|floatformat:2 }}
-            </div>
-        </div>
-
-    </section>
-
-    <div class="grid-main">
-
-        <!-- 2. Financial accounts overview -->
-        <section class="card">
-            <h3>Financial Accounts Overview</h3>
-
-            <div class="account-row">
-                <span class="account-label">Company Vault Equity</span>
-                <span class="account-value blue">
-                    ${{ vault.vault_equity_value|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Trading Pool Balance</span>
-                <span class="account-value green">
-                    ${{ pool.trading_pool_value|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Available Investor Share Pool</span>
-                <span class="account-value purple">
-                    ${{ share.share_pool_value|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Total Investor Contributions ({{ investors_count|default:0 }} investors)</span>
-                <span class="account-value pink">
-                    ${{ gross_investment|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Total Reinvested</span>
-                <span class="account-value green">
-                    ${{ total_reinvested|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Total Investor Allocations Recorded</span>
-                <span class="account-value purple">
-                    ${{ total_investor_allocated|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-actions">
-                <a href="{% url 'register_investor' %}" class="btn">
-                    Register Investor
-                </a>
-
-                <a href="{% url 'investor_share_pool' %}" class="btn btn-outline">
-                    View Share Pool
-                </a>
-            </div>
-        </section>
-
-        <!-- 3. Record trade activity -->
-        <section class="card">
-            <h3>Record Trade Activity</h3>
-            <p class="section-description">
-                Record a profitable or losing trade in the trading ledger.
-            </p>
-
-            {% if pool %}
-                <form action="{% url 'record_trade' pool.id %}" method="POST">
-                    {% csrf_token %}
-
-                    <div class="form-group">
-                        <label for="result_type">Trade Outcome</label>
-                        <select id="result_type" name="result_type" required>
-                            <option value="PROFIT">Profit Entry (+)</option>
-                            <option value="LOSS">Loss Entry (-)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="utility_traded">Asset Class</label>
-                        <select id="utility_traded" name="utility_traded" required>
-                            <option value="XAU/USD">Gold (XAU/USD)</option>
-                            <option value="VOL">Volatility Index</option>
-                            <option value="UNKNOWN">Unknown Asset Group</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="trade_direction">Trade Direction</label>
-                        <select id="trade_direction" name="trade_direction" required>
-                            <option value="BUY">BUY — Long Position</option>
-                            <option value="SELL">SELL — Short Position</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="amount">Trade Amount ($)</label>
-                        <input
-                            id="amount"
-                            type="number"
-                            name="amount"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Description</label>
-                        <input
-                            id="description"
-                            type="text"
-                            name="description"
-                            maxlength="500"
-                            placeholder="Strategy details or trade notes"
-                        >
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-full">
-                        Record Trade
-                    </button>
-                </form>
-            {% else %}
-                <div class="message error">
-                    No active trading pool exists. Create your trading pool
-                    before recording trades.
+            <!-- Dashboard heading -->
+            <header class="page-header">
+                <div>
+                    <h2>Trading Operations Dashboard</h2>
+                    <p>Monitor balances, trading performance and investor allocations.</p>
                 </div>
-            {% endif %}
-        </section>
-    </div>
-
-    
-<!-- 5. Financial Analytics -->
-<section class="analytics-section">
-    <h2 class="analytics-heading">Financial Analytics</h2>
-    <p class="analytics-description">
-        Analyze trading performance, account balances, asset profitability,
-        and investor contributions using recorded database transactions.
-    </p>
-
-    <div class="chart-grid">
-
-        <!-- Cumulative net P&L -->
-        <div class="chart-card">
-            <h3>Cumulative Net P&amp;L</h3>
-            <p class="chart-subtitle">
-                Running total of recorded profits minus recorded losses.
-            </p>
-            <div class="chart-container">
-                <canvas id="cumulativeChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Daily profit versus loss -->
-        <div class="chart-card">
-            <h3>Profit vs. Loss</h3>
-            <p class="chart-subtitle">
-                Daily recorded trading results.
-            </p>
-            <div class="chart-container">
-                <canvas id="profitLossChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Account balance distribution -->
-        <div class="chart-card">
-            <h3>Account Balance Distribution</h3>
-            <p class="chart-subtitle">
-                Comparison of current vault, trading pool, and available
-                investor share pool balances.
-            </p>
-            <div class="chart-container chart-small">
-                <canvas id="accountChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Asset performance -->
-        <div class="chart-card">
-            <h3>Performance by Asset</h3>
-            <p class="chart-subtitle">
-                Aggregate profits and losses grouped by traded asset.
-            </p>
-            <div class="chart-container">
-                <canvas id="assetChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Investor contributions -->
-        <div class="chart-card">
-            <h3>Investor Contributions</h3>
-            <p class="chart-subtitle">
-                Top 10 investors ranked by total recorded contributions.
-            </p>
-            <div class="chart-container">
-                <canvas id="investorChart"></canvas>
-            </div>
-        </div>
-        <!-- 4. Investor share pool summary -->
-        <section class="card share-pool-card">
-            <h3>Investor Share Pool</h3>
-
-            <p class="section-description">
-                Review the available profit allocation balance and previously
-                recorded investor allocations.
-            </p>
-
-            <div class="account-row">
-                <span class="account-label">Available for Allocation</span>
-                <span class="account-value">
-                    ${{ share.share_pool_value|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="account-row">
-                <span class="account-label">Previously Allocated</span>
-                <span class="account-value">
-                    ${{ total_investor_allocated|default:"0.00"|floatformat:2 }}
-                </span>
-            </div>
-
-            <div class="notice">
-                Allocations are calculated from recorded investor contributions.
-                They represent accounting records and do not confirm that
-                payments have been made.
-            </div>
-
-            <div class="account-actions">
                 <a href="{% url 'investor_share_pool' %}" class="btn btn-primary">
-                    Open Allocation Page
+                    Manage Investor Shares
                 </a>
-            </div>
-        </section>
-    </div>
+                <a href="{% url 'home' %}" class="btn btn-warning">
+                    Home
+                </a>
+            </header>
 
-    <!-- Filter Period -->
-    <div class="card" style="margin-top: 25px; margin-bottom: 20px;">
-        <form method="get"
-            style="display: flex; flex-wrap: wrap; align-items: end; gap: 12px;">
-
-            <div class="form-group" style="margin: 0; min-width: 200px;">
-                <label for="period">Trading Performance Period</label>
-                <select id="period" name="period">
-                    {% for option in period_options %}
-                        <option value="{{ option.value }}"
-                            {% if selected_period == option.value %}selected{% endif %}>
-                            {{ option.label }}
-                        </option>
+            <!-- System messages -->
+            {% if messages %}
+                <ul class="messages">
+                    {% for message in messages %}
+                        <li class="message
+                            {% if 'success' in message.tags %}success
+                            {% elif 'error' in message.tags %}error
+                            {% elif 'warning' in message.tags %}warning
+                            {% else %}info{% endif %}">
+                            {{ message }}
+                        </li>
                     {% endfor %}
-                </select>
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-                Apply Filter
-            </button>
-
-            <a href="{% url 'wallet_dashboard' %}" class="btn btn-outline">
-                Reset
-            </a>
-        </form>
-    </div>
-    
-    <!-- Recent Trading Activity -->
-    <section class="analytics-section">
-        <div class="card">
-            <h3>Recent Trading Activity</h3>
-            <p class="analytics-description">
-                The latest recorded trades within the selected reporting period.
-            </p>
-
-            {% if recent_activity %}
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse;
-                                font-size: 13px; white-space: nowrap;">
-                        <thead style="background: #f6f8fa;">
-                            <tr>
-                                <th style="padding: 12px; text-align: left;">Date</th>
-                                <th style="padding: 12px; text-align: left;">Type</th>
-                                <th style="padding: 12px; text-align: left;">Asset</th>
-                                <th style="padding: 12px; text-align: left;">Direction</th>
-                                <th style="padding: 12px; text-align: right;">Amount</th>
-                                <th style="padding: 12px; text-align: left;">Description</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {% for trade in recent_activity %}
-                                <tr style="border-bottom: 1px solid #e1e4e8;">
-                                    <td style="padding: 12px;">
-                                        {{ trade.date|date:"d M Y, H:i" }}
-                                    </td>
-
-                                    <td style="padding: 12px;">
-                                        {% if trade.type == "PROFIT" %}
-                                            <span style="color: #218838; font-weight: 700;">
-                                                PROFIT
-                                            </span>
-                                        {% else %}
-                                            <span style="color: #cb2431; font-weight: 700;">
-                                                LOSS
-                                            </span>
-                                        {% endif %}
-                                    </td>
-
-                                    <td style="padding: 12px;">{{ trade.asset }}</td>
-                                    <td style="padding: 12px;">{{ trade.direction }}</td>
-
-                                    <td style="padding: 12px; text-align: right;
-                                            font-weight: 700;">
-                                        {% if trade.type == "PROFIT" %}
-                                            <span style="color: #218838;">
-                                                +${{ trade.amount|floatformat:2 }}
-                                            </span>
-                                        {% else %}
-                                            <span style="color: #cb2431;">
-                                                -${{ trade.amount|floatformat:2 }}
-                                            </span>
-                                        {% endif %}
-                                    </td>
-
-                                    <td style="padding: 12px;">
-                                        {{ trade.description|default:"—"|truncatechars:45 }}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="muted">
-                    No trading activity is recorded for the selected period.
-                </p>
+                </ul>
             {% endif %}
+
+            <!-- 1. Trading performance statistics -->
+            <section class="grid-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Trades</div>
+                    <div class="stat-val">{{ stats.total_trades|default:0 }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Win Rate</div>
+                    <div class="stat-val"
+                        style="color: {% if stats.win_rate >= 50 %}#218838{% else %}#cb2431{% endif %};">
+                        {{ stats.win_rate|floatformat:2 }}%
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Profit/Loss Ratio</div>
+                    <div class="stat-val">
+                        {{ stats.profit_loss_ratio|floatformat:2 }}
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Net PnL</div>
+                    <div class="stat-val"
+                        style="color: {% if stats.net_profit >= 0 %}#218838{% else %}#cb2431{% endif %};">
+                        ${{ stats.net_profit|floatformat:2 }}
+                    </div>
+                </div>
+            </section>
+
+            <!-- Main Grid -->
+            <div class="grid-main">
+
+                <!-- 2. Financial accounts overview -->
+                <section class="card">
+                    <h3>Financial Accounts Overview</h3>
+                    <div class="account-row">
+                        <span class="account-label">Company Vault Equity</span>
+                        <span class="account-value blue">
+                            ${{ vault.vault_equity_value|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Trading Pool Balance</span>
+                        <span class="account-value green">
+                            ${{ pool.trading_pool_value|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Available Investor Share Pool</span>
+                        <span class="account-value purple">
+                            ${{ share.share_pool_value|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Total Investor Contributions ({{ investors_count|default:0 }} investors)</span>
+                        <span class="account-value pink">
+                            ${{ gross_investment|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Total Reinvested</span>
+                        <span class="account-value green">
+                            ${{ total_reinvested|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Total Investor Allocations Recorded</span>
+                        <span class="account-value purple">
+                            ${{ total_investor_allocated|default:"0.00"|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="account-actions">
+                        <a href="{% url 'vault_pool_share' %}" class="btn">
+                            View Vault
+                        </a>
+                        <a href="{% url 'vault_pool_share' %}" class="btn btn-outline">
+                            View Trading Pool
+                        </a>
+                    </div>
+                </section>
+
+                <!-- 3. Record trade activity -->
+                <section class="card">
+                    <h3>Record Trade Activity</h3>
+                    <p class="section-description">
+                        Record a profitable or losing trade in the trading ledger.
+                    </p>
+
+                    {% if pool %}
+                        <form action="{% url 'record_trade' pool.id %}" method="POST">
+                            {% csrf_token %}
+                            <div class="form-group">
+                                <label for="result_type">Trade Outcome</label>
+                                <select id="result_type" name="result_type" required>
+                                    <option value="PROFIT">Profit Entry (+)</option>
+                                    <option value="LOSS">Loss Entry (-)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="utility_traded">Asset Class</label>
+                                <select id="utility_traded" name="utility_traded" required>
+                                    <option value="XAU/USD">Gold (XAU/USD)</option>
+                                    <option value="VOL">Volatility Index</option>
+                                    <option value="UNKNOWN">Unknown Asset Group</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="trade_direction">Trade Direction</label>
+                                <select id="trade_direction" name="trade_direction" required>
+                                    <option value="BUY">BUY — Long Position</option>
+                                    <option value="SELL">SELL — Short Position</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="amount">Trade Amount ($)</label>
+                                <input
+                                    id="amount"
+                                    type="number"
+                                    name="amount"
+                                    step="0.01"
+                                    min="0.01"
+                                    placeholder="0.00"
+                                    required
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="description">Description</label>
+                                <input
+                                    id="description"
+                                    type="text"
+                                    name="description"
+                                    maxlength="500"
+                                    placeholder="Strategy details or trade notes"
+                                >
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full">
+                                Record Trade
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="message error">
+                            No active trading pool exists. Create your trading pool
+                            before recording trades.
+                        </div>
+                        <form action="{% url 'create_wallet_resource' 'trading-pool' %}" method="POST">
+                            {% csrf_token %}
+                            <button type="submit" style="background-color: coral;" class="btn">Initialize Trading Pool</button>
+                        </form>
+                    {% endif %}
+                </section>
+            </div>
+            
+            <!-- 5. Financial Analytics -->
+            <section class="analytics-section">
+                <h2 class="analytics-heading">Financial Analytics</h2>
+                <p class="analytics-description">
+                    Analyze trading performance, account balances, asset profitability,
+                    and investor contributions using recorded database transactions.
+                </p>
+                <div class="chart-grid">
+
+                    <!-- Account balance distribution -->
+                    <div class="chart-card">
+                        <h3>Account Balance Distribution</h3>
+                        <p class="chart-subtitle">
+                            Comparison of current vault, trading pool, and available
+                            investor share pool balances.
+                        </p>
+                        <div class="chart-container chart-small">
+                            <canvas id="accountChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Cumulative net P&L -->
+                    <div class="chart-card">
+                        <h3>Cumulative Net P&amp;L</h3>
+                        <p class="chart-subtitle">
+                            Running total of recorded profits minus recorded losses.
+                        </p>
+                        <div class="chart-container">
+                            <canvas id="cumulativeChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Daily profit versus loss -->
+                    <div class="chart-card">
+                        <h3>Profit vs. Loss</h3>
+                        <p class="chart-subtitle">
+                            Daily recorded trading results.
+                        </p>
+                        <div class="chart-container">
+                            <canvas id="profitLossChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Monthly performance comparison -->
+                    <!-- <div class="chart-card">
+                        <h3>Monthly Performance Comparison</h3>
+                        <p class="chart-subtitle">
+                            Gross profit, gross loss, and net P&amp;L by month.
+                            Filtered by the selected reporting period.
+                        </p>
+                        <div class="chart-container">
+                            <canvas id="monthlyPerformanceChart"></canvas>
+                        </div>
+                    </div> -->
+
+                    <!-- Asset performance -->
+                    <div class="chart-card">
+                        <h3>Performance by Asset</h3>
+                        <p class="chart-subtitle">
+                            Aggregate profits and losses grouped by traded asset.
+                        </p>
+                        <div class="chart-container">
+                            <canvas id="assetChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 4. Investor share pool summary -->
+                    <section class="card share-pool-card">
+                        <h3>Investor Share Pool</h3>
+                        <p class="section-description">
+                            Review the available profit allocation balance and previously
+                            recorded investor allocations.
+                        </p>
+                        <div class="account-row">
+                            <span class="account-label">Available for Allocation</span>
+                            <span class="account-value">
+                                ${{ share.share_pool_value|default:"0.00"|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="account-row">
+                            <span class="account-label">Previously Allocated</span>
+                            <span class="account-value">
+                                ${{ total_investor_allocated|default:"0.00"|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="notice">
+                            Allocations are calculated from recorded investor contributions.
+                            They represent accounting records and do not confirm that
+                            payments have been made.
+                        </div>
+                        <div class="account-actions">
+                            <a href="{% url 'investor_share_pool' %}" class="btn btn-primary">
+                                Open Allocation Page
+                            </a>
+                        </div>
+                    </section>
+
+                    <!-- Investor contributions -->
+                    <div class="chart-card">
+                        <h3>Investor Contributions</h3>
+                        <p class="chart-subtitle">
+                            Top 10 investors ranked by total recorded contributions.
+                        </p>
+                        <div class="chart-container">
+                            <canvas id="investorChart"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Filter Period -->
+                <div class="card" style="margin-top: 25px; margin-bottom: 20px;">
+                    <form method="get" style="display: flex; flex-wrap: wrap; align-items: end; gap: 12px;">
+                        <div class="form-group" style="margin: 0; min-width: 200px;">
+                            <label for="period">Trading Performance Period</label>
+                            <select id="period" name="period">
+                                {% for option in period_options %}
+                                    <option value="{{ option.value }}"
+                                        {% if selected_period == option.value %}selected{% endif %}>
+                                        {{ option.label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            Apply Filter
+                        </button>
+                        <a href="{% url 'wallet_dashboard' %}" class="btn btn-outline">
+                            Reset
+                        </a>
+                    </form>
+                </div>
+                
+                <!-- Recent Trading Activity -->
+                <section class="analytics-section">
+                    <div class="card">
+                        <h3>Recent Trading Activity</h3>
+                        <p class="analytics-description">
+                            The latest recorded trades within the selected reporting period.
+                        </p>
+                        {% if recent_activity %}
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;
+                                            font-size: 13px; white-space: nowrap;">
+                                    <thead style="background: #f6f8fa;">
+                                        <tr>
+                                            <th style="padding: 12px; text-align: left;">Date</th>
+                                            <th style="padding: 12px; text-align: left;">Type</th>
+                                            <th style="padding: 12px; text-align: left;">Asset</th>
+                                            <th style="padding: 12px; text-align: left;">Direction</th>
+                                            <th style="padding: 12px; text-align: right;">Amount</th>
+                                            <th style="padding: 12px; text-align: left;">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for trade in recent_activity %}
+                                            <tr style="border-bottom: 1px solid #e1e4e8;">
+                                                <td style="padding: 12px;">
+                                                    {{ trade.date|date:"d M Y, H:i" }}
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    {% if trade.type == "PROFIT" %}
+                                                        <span style="color: #218838; font-weight: 700;">
+                                                            PROFIT
+                                                        </span>
+                                                    {% else %}
+                                                        <span style="color: #cb2431; font-weight: 700;">
+                                                            LOSS
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td style="padding: 12px;">{{ trade.asset }}</td>
+                                                <td style="padding: 12px;">{{ trade.direction }}</td>
+
+                                                <td style="padding: 12px; text-align: right;
+                                                        font-weight: 700;">
+                                                    {% if trade.type == "PROFIT" %}
+                                                        <span style="color: #218838;">
+                                                            +${{ trade.amount|floatformat:2 }}
+                                                        </span>
+                                                    {% else %}
+                                                        <span style="color: #cb2431;">
+                                                            -${{ trade.amount|floatformat:2 }}
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    {{ trade.description|default:"—"|truncatechars:45 }}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="muted">
+                                No trading activity is recorded for the selected period.
+                            </p>
+                        {% endif %}
+                    </div>
+                </section>
+            </section>
+
+
+            <!-- Safely serialize Django chart data -->
+            {{ chart_data|json_script:"chart-data" }}
+
+            <!-- Chart.js -->
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+            <script>
+                document.addEventListener("DOMContentLoaded", function () {
+                    const dataElement = document.getElementById("chart-data");
+
+                    if (!dataElement || typeof Chart === "undefined") {
+                        return;
+                    }
+
+                    const data = JSON.parse(dataElement.textContent);
+
+                    const moneyTooltip = {
+                        callbacks: {
+                            label: function (context) {
+                                const value = Number(context.parsed.y ?? context.parsed ?? 0);
+                                return context.dataset.label + ": $" +
+                                    value.toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    });
+                            }
+                        }
+                    };
+
+                    const moneyAxis = {
+                        ticks: {
+                            callback: function (value) {
+                                return "$" + Number(value).toLocaleString();
+                            }
+                        }
+                    };
+
+                    // 1. Cumulative net P&L
+                    new Chart(document.getElementById("cumulativeChart"), {
+                        type: "line",
+                        data: {
+                            labels: data.daily.labels,
+                            datasets: [{
+                                label: "Cumulative Net P&L",
+                                data: data.daily.cumulative,
+                                borderColor: "#0366d6",
+                                backgroundColor: "rgba(3, 102, 214, 0.12)",
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 3,
+                                pointHoverRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: "index"
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: moneyTooltip
+                            },
+                            scales: {
+                                y: {
+                                    ...moneyAxis,
+                                    beginAtZero: false,
+                                    title: {
+                                        display: true,
+                                        text: "Net P&L ($)"
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: "Trade date"
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 2. Daily profit versus loss
+                    new Chart(document.getElementById("profitLossChart"), {
+                        type: "bar",
+                        data: {
+                            labels: data.daily.labels,
+                            datasets: [
+                                {
+                                    label: "Profit",
+                                    data: data.daily.profits,
+                                    backgroundColor: "#218838",
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: "Loss",
+                                    data: data.daily.losses.map(value => -value),
+                                    backgroundColor: "#cb2431",
+                                    borderRadius: 4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            return context.dataset.label + ": $" +
+                                                Math.abs(context.parsed.y).toLocaleString(
+                                                    undefined,
+                                                    {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2
+                                                    }
+                                                );
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    ...moneyAxis,
+                                    title: {
+                                        display: true,
+                                        text: "Amount ($); losses shown below zero"
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: "Trade date"
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 3. Current account balances
+                    new Chart(document.getElementById("accountChart"), {
+                        type: "doughnut",
+                        data: {
+                            labels: data.accounts.labels,
+                            datasets: [{
+                                data: data.accounts.balances,
+                                backgroundColor: [
+                                    "#0366d6",
+                                    "#218838",
+                                    "#6f42c1"
+                                ],
+                                borderWidth: 2,
+                                borderColor: "#ffffff"
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: "bottom"
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            return context.label + ": $" +
+                                                Number(context.parsed).toLocaleString(
+                                                    undefined,
+                                                    {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2
+                                                    }
+                                                );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 4. Profit and loss by asset
+                    new Chart(document.getElementById("assetChart"), {
+                        type: "bar",
+                        data: {
+                            labels: data.assets.labels,
+                            datasets: [
+                                {
+                                    label: "Profit",
+                                    data: data.assets.profits,
+                                    backgroundColor: "#218838",
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: "Loss",
+                                    data: data.assets.losses.map(value => -value),
+                                    backgroundColor: "#cb2431",
+                                    borderRadius: 4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            return context.dataset.label + ": $" +
+                                                Math.abs(context.parsed.y).toLocaleString(
+                                                    undefined,
+                                                    {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2
+                                                    }
+                                                );
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    ...moneyAxis,
+                                    title: {
+                                        display: true,
+                                        text: "Amount ($); losses shown below zero"
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 5. Investor contributions
+                    new Chart(document.getElementById("investorChart"), {
+                        type: "bar",
+                        data: {
+                            labels: data.investors.labels,
+                            datasets: [{
+                                label: "Contributions",
+                                data: data.investors.contributions,
+                                backgroundColor: "#c2188b",
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            indexAxis: "y",
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: moneyTooltip
+                            },
+                            scales: {
+                                x: {
+                                    ...moneyAxis,
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+
+                    // 5. Monthly Comparison
+                    new Chart(document.getElementById("monthlyPerformanceChart"), {
+                        type: "bar",
+                        data: {
+                            labels: data.monthly.labels,
+                            datasets: [
+                                {
+                                    label: "Gross Profit",
+                                    data: data.monthly.profits,
+                                    backgroundColor: "#218838",
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: "Gross Loss",
+                                    data: data.monthly.losses.map(value => -value),
+                                    backgroundColor: "#cb2431",
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: "Net P&L",
+                                    data: data.monthly.net,
+                                    type: "line",
+                                    borderColor: "#0366d6",
+                                    backgroundColor: "#0366d6",
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    tension: 0.25
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: "index"
+                            },
+                            plugins: {
+                                legend: {
+                                    position: "bottom"
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const value = context.parsed.y ?? 0;
+
+                                            // Loss bars are plotted below zero for comparison.
+                                            const displayValue =
+                                                context.dataset.label === "Gross Loss"
+                                                    ? Math.abs(value)
+                                                    : value;
+
+                                            return context.dataset.label + ": $" +
+                                                displayValue.toLocaleString(undefined, {
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2
+                                                });
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    ticks: {
+                                        callback: function(value) {
+                                            return "$" + Number(value).toLocaleString();
+                                        }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: "Amount ($)"
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: "Month"
+                                    }
+                                }
+                            }
+                        }
+                    });
+                });
+            </script>
+
+            <!-- Footer -->
+            <p class="footer-note">
+                Trading Wallet Management System &copy; cyb3r-cych0
+            </p>
         </div>
-    </section>
-</section>
-
-
-    <!-- Safely serialize Django chart data -->
-    {{ chart_data|json_script:"chart-data" }}
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const dataElement = document.getElementById("chart-data");
-
-        if (!dataElement || typeof Chart === "undefined") {
-            return;
-        }
-
-        const data = JSON.parse(dataElement.textContent);
-
-        const moneyTooltip = {
-            callbacks: {
-                label: function (context) {
-                    const value = Number(context.parsed.y ?? context.parsed ?? 0);
-                    return context.dataset.label + ": $" +
-                        value.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
-                }
-            }
-        };
-
-        const moneyAxis = {
-            ticks: {
-                callback: function (value) {
-                    return "$" + Number(value).toLocaleString();
-                }
-            }
-        };
-
-        // 1. Cumulative net P&L
-        new Chart(document.getElementById("cumulativeChart"), {
-            type: "line",
-            data: {
-                labels: data.daily.labels,
-                datasets: [{
-                    label: "Cumulative Net P&L",
-                    data: data.daily.cumulative,
-                    borderColor: "#0366d6",
-                    backgroundColor: "rgba(3, 102, 214, 0.12)",
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    intersect: false,
-                    mode: "index"
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: moneyTooltip
-                },
-                scales: {
-                    y: {
-                        ...moneyAxis,
-                        beginAtZero: false,
-                        title: {
-                            display: true,
-                            text: "Net P&L ($)"
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: "Trade date"
-                        }
-                    }
-                }
-            }
-        });
-
-        // 2. Daily profit versus loss
-        new Chart(document.getElementById("profitLossChart"), {
-            type: "bar",
-            data: {
-                labels: data.daily.labels,
-                datasets: [
-                    {
-                        label: "Profit",
-                        data: data.daily.profits,
-                        backgroundColor: "#218838",
-                        borderRadius: 4
-                    },
-                    {
-                        label: "Loss",
-                        data: data.daily.losses.map(value => -value),
-                        backgroundColor: "#cb2431",
-                        borderRadius: 4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return context.dataset.label + ": $" +
-                                    Math.abs(context.parsed.y).toLocaleString(
-                                        undefined,
-                                        {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2
-                                        }
-                                    );
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        ...moneyAxis,
-                        title: {
-                            display: true,
-                            text: "Amount ($); losses shown below zero"
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: "Trade date"
-                        }
-                    }
-                }
-            }
-        });
-
-        // 3. Current account balances
-        new Chart(document.getElementById("accountChart"), {
-            type: "doughnut",
-            data: {
-                labels: data.accounts.labels,
-                datasets: [{
-                    data: data.accounts.balances,
-                    backgroundColor: [
-                        "#0366d6",
-                        "#218838",
-                        "#6f42c1"
-                    ],
-                    borderWidth: 2,
-                    borderColor: "#ffffff"
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: "bottom"
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return context.label + ": $" +
-                                    Number(context.parsed).toLocaleString(
-                                        undefined,
-                                        {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2
-                                        }
-                                    );
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // 4. Profit and loss by asset
-        new Chart(document.getElementById("assetChart"), {
-            type: "bar",
-            data: {
-                labels: data.assets.labels,
-                datasets: [
-                    {
-                        label: "Profit",
-                        data: data.assets.profits,
-                        backgroundColor: "#218838",
-                        borderRadius: 4
-                    },
-                    {
-                        label: "Loss",
-                        data: data.assets.losses.map(value => -value),
-                        backgroundColor: "#cb2431",
-                        borderRadius: 4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return context.dataset.label + ": $" +
-                                    Math.abs(context.parsed.y).toLocaleString(
-                                        undefined,
-                                        {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2
-                                        }
-                                    );
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        ...moneyAxis,
-                        title: {
-                            display: true,
-                            text: "Amount ($); losses shown below zero"
-                        }
-                    }
-                }
-            }
-        });
-
-        // 5. Investor contributions
-        new Chart(document.getElementById("investorChart"), {
-            type: "bar",
-            data: {
-                labels: data.investors.labels,
-                datasets: [{
-                    label: "Contributions",
-                    data: data.investors.contributions,
-                    backgroundColor: "#c2188b",
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                indexAxis: "y",
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: moneyTooltip
-                },
-                scales: {
-                    x: {
-                        ...moneyAxis,
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    });
-    </script>
-
-    <p class="footer-note">
-        Trading Wallet Management System
-    </p>
-
-</div>
-</body>
+    </body>
 </html>

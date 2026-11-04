@@ -8,6 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncMonth
 from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -105,6 +106,72 @@ def wallet_dashboard(request):
 
     recent_activity = recent_activity[:10]
 
+
+    
+    # --------------------------------------------------
+    # Monthly profit, loss, and net P&L
+    # Uses the currently selected date range.
+    # --------------------------------------------------
+    monthly_profit_rows = (
+        profits
+        .annotate(month=TruncMonth("profit_trade_date"))
+        .values("month")
+        .annotate(total=Sum("profit_value"))
+        .order_by("month")
+    )
+
+    monthly_loss_rows = (
+        losses
+        .annotate(month=TruncMonth("loss_trade_date"))
+        .values("month")
+        .annotate(total=Sum("loss_value"))
+        .order_by("month")
+    )
+
+    monthly_data = {}
+
+    for row in monthly_profit_rows:
+        if row["month"]:
+            month_key = row["month"].strftime("%Y-%m")
+            monthly_data.setdefault(
+                month_key,
+                {"profit": 0.0, "loss": 0.0},
+            )
+            monthly_data[month_key]["profit"] = float(
+                row["total"] or 0
+            )
+
+    for row in monthly_loss_rows:
+        if row["month"]:
+            month_key = row["month"].strftime("%Y-%m")
+            monthly_data.setdefault(
+                month_key,
+                {"profit": 0.0, "loss": 0.0},
+            )
+            monthly_data[month_key]["loss"] = float(
+                row["total"] or 0
+            )
+
+    monthly_labels = sorted(monthly_data.keys())
+
+    monthly_profits = [
+        round(monthly_data[month]["profit"], 2)
+        for month in monthly_labels
+    ]
+
+    monthly_losses = [
+        round(monthly_data[month]["loss"], 2)
+        for month in monthly_labels
+    ]
+
+    monthly_net = [
+        round(
+            monthly_data[month]["profit"]
+            - monthly_data[month]["loss"],
+            2,
+        )
+        for month in monthly_labels
+    ]
 
 
     # --------------------------------------------------
@@ -364,7 +431,13 @@ def wallet_dashboard(request):
             "average_loss": average_loss,
         },
         "chart_data": chart_data,
-        "recent_activity": recent_activity
+        "recent_activity": recent_activity,
+        "monthly": {
+            "labels": monthly_labels,
+            "profits": monthly_profits,
+            "losses": monthly_losses,
+            "net": monthly_net,
+        },
     }
 
     return render(request, "wallet_dashboard.html", context)
@@ -643,10 +716,91 @@ def investor_share_pool_view(request):
                 "The investor share pool does not exist yet."
             )
             return redirect("investor_share_pool")
-
         try:
             allocations = share_pool.distribute_to_investors()
+            messages.success(
+                request,
+                f"Allocation completed. "
+                f"{len(allocations)} investor allocation record(s) created."
+            )
+        except ValidationError as exc:
+            for error in exc.messages:
+                messages.error(request, error)
+        return redirect("investor_share_pool")
 
+    # Only show contributions belonging to this user's vault.
+    contributions = InvestorContribution.objects.filter(
+        vault__user=request.user
+    )
+    contribution_total = (
+        contributions.aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+
+    # Show allocation records for this user's share pool only.
+    allocations = InvestorShareAllocation.objects.filter(
+        share_pool__user=request.user
+    ).select_related(
+        "investor",
+        "share_pool",
+    ).order_by("-distribution_date")[:6]
+    allocation_total = (
+        InvestorShareAllocation.objects.aggregate(total=Sum("amount"))
+        ["total"] or Decimal("0.00")
+    )
+
+    context = {
+        "share_pool": share_pool,
+        "contribution_total": contribution_total,
+        "allocation_total": allocation_total,
+        "allocations": allocations,
+    }
+    return render(request, "investors/investor_share_pool.html", context)
+
+
+@login_required
+def vault_pool_share_view(request):
+    user = request.user
+
+    vault = VaultEquity.objects.filter(user=request.user).first()
+    pool = TradingPool.objects.filter(user=request.user).first()
+    share = InvestorSharePool.objects.filter(user=request.user).first()
+    pool_transfer = PoolTransfer.objects.all()
+    pool_tranfer_volume = pool_transfer.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    pool_transfer_display = pool_transfer[:6]
+
+    # Only allow allocation through POST.
+    if request.method == "POST":
+        if vault is None:
+            messages.error(
+                request,
+                "The vault pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        if pool is None:
+            messages.error(
+                request,
+                "The vault pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        if share is None:
+            messages.error(
+                request,
+                "The investor share pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+
+        if pool_transfer is None:
+            messages.error(
+                request,
+                "The pool transfer history does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        try:
+            allocations = share.distribute_to_investors()
             messages.success(
                 request,
                 f"Allocation completed. "
@@ -657,7 +811,7 @@ def investor_share_pool_view(request):
             for error in exc.messages:
                 messages.error(request, error)
 
-        return redirect("investor_share_pool")
+        return redirect("vault_pool_share")
 
     # Only show contributions belonging to this user's vault.
     contributions = InvestorContribution.objects.filter(
@@ -682,15 +836,24 @@ def investor_share_pool_view(request):
         or Decimal("0.00")
     )
 
+    allocation_display = InvestorShareAllocation.objects.filter(
+        share_pool__user=request.user
+    ).select_related(
+        "investor",
+        "share_pool",
+    ).order_by("-distribution_date")[:6]
+
     context = {
-        "share_pool": share_pool,
+        "user": user,
+        "share": share,
+        "vault": vault,
+        "pool": pool,
+        "pool_transfer": pool_transfer,
+        "pool_tranfer_volume": pool_tranfer_volume,
+        "pool_transfer_display": pool_transfer_display,
         "contribution_total": contribution_total,
         "allocation_total": allocation_total,
         "allocations": allocations,
+        "allocation_display": allocation_display
     }
-
-    return render(
-        request,
-        "investor_share_pool.html",
-        context,
-    )
+    return render(request, "funds/vault_pool_share.html", context)

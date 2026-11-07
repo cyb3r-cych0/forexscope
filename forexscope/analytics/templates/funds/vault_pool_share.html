@@ -22,7 +22,7 @@
             }
 
             .container {
-                max-width: 1200px;
+                max-width: 1500px;
                 margin: 35px auto;
                 padding: 0 20px;
             }
@@ -407,49 +407,86 @@
                         Transfers funds to Account Trading Pool.
                     </p>
                     {% if vault %}
-                        <div class="account-row">
-                            <span class="account-label">Vault Status</span>
-                            <span class="account-value purple">
-                                Active
-                            </span>
+                        <div class="message notice">
+                            Vault Health
                         </div>
                         <div class="account-row">
-                            <span class="account-label">Created On</span>
+                            <span class="account-label">Genesis</span>
                             <span class="account-value black">
-                                {{ vault.created_at }}
+                                {{ vault.created_at|date:"d M Y" }}
                             </span>
                         </div>
                         <div class="account-row">
-                            <span class="account-label">Last Update</span>
-                            <span class="account-value black">
-                                {{ vault.updated_at }}
-                            </span>
-                        </div>
-                        <div class="account-row">
-                            <span class="account-label">Current Available Balance</span>
+                            <span class="account-label">Deposits</span>
                             <span class="account-value green">
-                                ${{ vault.vault_equity_value|default:"0.00"|floatformat:2 }}
+                                ${{ total_vault_funding|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="account-row">
+                            <span class="account-label">Withdrawals</span>
+                            <span class="account-value blue">
+                                ${{ total_vault_withdrawals|floatformat:2 }}                            
                             </span>
                         </div>
                         {% if user.is_superuser == True %}
                             <div class="message info">
                                 User: {{ user.username }}! Vault Access: Granted
                             </div>
-                            <div class=" message notice">
-                                Before funding the vault, please funds confirmation.
-                            </div>
-                            <div class="account-actions">
-                                <form action="{% url 'add_equity' vault.id %}" method="POST">
-                                    {% csrf_token %}
-                                    <div class="form-group" style="margin:auto;">
-                                        <input style="padding: .5rem; margin: .5rem;" type="number" name="amount" step="0.01" min="0.01" placeholder="Amount to add" required>
-                                        <button type="submit" style="background-color: darkblue;" class="btn">Fund Vault</button>
-                                    </div>
-                                </form>
-                            </div>
+                            <form action="{% url 'vault_transaction' vault.id %}" method="POST">
+                                {% csrf_token %}
+                                <div class="account-row">
+                                    <span class="account-label">Type</span>
+                                    <span class="account-value">
+                                        <select style="padding: .5rem; margin: auto;" name="transaction_type" id="transaction_type" required style="padding: .5rem;">
+                                            <option value="FUNDING">Deposit</option>
+                                            <option value="WITHDRAWAL">Withdraw</option>
+                                        </select>
+                                    </span>
+                                </div>
+                                <div class="account-row">
+                                    <span class="account-label">Amount</span>
+                                    <span class="account-value green">
+                                        <input style="padding: .5rem; margin: auto;"
+                                            type="number"
+                                            name="amount"
+                                            id="vault_amount"
+                                            step="0.01"
+                                            min="0.01"
+                                            placeholder="0.00"
+                                            required
+                                        >
+                                    </span>
+                                </div>
+                                <div class="account-row">
+                                    <span class="account-label">Reference</span>
+                                    <span class="account-value green">
+                                        <input style="padding: .5rem; margin: auto;"
+                                            type="text"
+                                            name="reference"
+                                            id="reference"
+                                            maxlength="100"
+                                            placeholder="BANK-TRX | MPESA-TRX"
+                                        >
+                                    </span>
+                                </div>
+                                <div class="account-row">
+                                    <span class="account-label">Description</span>
+                                    <span class="account-value green">
+                                            <input style="padding: .5rem; margin: auto;"
+                                            type="text"
+                                            name="description"
+                                            id="vault_description"
+                                            placeholder="Reason"
+                                        >
+                                    </span>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-full">
+                                    TRANSACT
+                                </button>
+                            </form>
                         {% else %}
                             <div class="message error">
-                                User: {{ user.username }}! Vault Access: Denied
+                                Vault Access for {{ user.username }}: DENIED
                             </div>
                             <div class="message warning">
                                 Cannot Fund Vault, Please contact Admin.
@@ -457,77 +494,111 @@
                         {% endif %}
                     {% else %}
                         <div class="message warning">
-                            No Vault Intialized For this Account. Please Click on the 
-                            'Initialize Vault' button to run initilization algorithm.
+                            No Vault Detected
                         </div>
                         {% if user.is_superuser == True %}
+                            <div class="message info">
+                                Initialize Vault To Activate System
+                            </div>
                             <form action="{% url 'create_wallet_resource' 'vault' %}" method="POST">
                                 {% csrf_token %}
-                                <button type="submit" style="background-color: aquamarine;" class="btn">Initialize Vault</button>
+                                <button type="submit" class="btn btn-warningy btn-full">
+                                    ACTIVATE
+                                </button>
                             </form>
                         {% else %}
                             <div class="message error">
-                                User: {{ user.username }}! Vault Access: Denied
+                                Access Denied for {{ user.username }}
                             </div>
                             <div class="message warning">
-                                Cannot Fund Vault, Please contact Admin.
+                                Transaction Not Allowed Contact Admin
                             </div>
                         {% endif %}
                     {% endif %}                
                 </section>
 
-                <!-- Vault Table -->
+                <!-- Vault Transaction History -->
                 <section class="card" style="height: 100%;">
                     <h3>
-                        Vault Funding History
+                        Vault Equity Transactions
                     </h3>
                     <p class="description">
-                        Review funding records generated by fund vault command.
+                        Transaction records generated transfers and liquidations
                     </p>
-                    {% if vault %}
+                    {% if vault_transactions %}
                         <div class="table-wrapper">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Vault Equity Funding</th>
-                                        <th class="text-right">Something</th>
-                                        <th class="text-right">User</th>
+                                        <th>Date</th>
+                                        <th>Type</th>
                                         <th class="text-right">Amount</th>
-                                        <th>Distribution Date</th>
+                                        <th class="text-right">Balance After</th>
+                                        <th class="text-right">Reference</th>
+                                        <th class="text-right">Description</th>
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {% for transact in vault_transactions %}
                                         <tr>
                                             <td>
+                                                {{ transact.transaction_date|date:"d M Y, H:i" }}
+                                            </td>
+                                            <td>
+                                                {% if transact.transaction_type == "FUNDING" %}
+                                                    <span style="color: #218838;">
+                                                        FUNDING
+                                                    </span>
+                                                {% else %}
+                                                    <span style="color: #cb2431;">
+                                                        WITHDRAWAL
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if transact.transaction_type == "FUNDING" %}
+                                                    <span style="color: #218838;">
+                                                        +${{ transact.amount|floatformat:2 }}
+                                                    </span>
+                                                {% else %}
+                                                    <span style="color: #cb2431;">
+                                                        -${{ transact.amount|floatformat:2 }}
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-right red">
+                                                ${{ transact.balance_after|floatformat:2 }}
                                             </td>
                                             <td class="text-right">
+                                                {{ transact.reference|default:"—" }}
                                             </td>
                                             <td class="text-right">
-                                            </td>
-                                            <td class="text-right green">
-                                                <strong>
-                                                </strong>
-                                            </td>
+                                                <i>
+                                                    {{ transact.description|default:"—"|truncatechars:40 }}  
+                                                </i>                                           </td>
                                             <td>
                                             </td>
                                         </tr>
+                                    {% endfor %}
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <th colspan="3">Vault Accumulated Volume</th>
-                                        <th class="text-right">
-                                            ${{ vault.vault_equity_value|floatformat:2 }}
+                                        <th colspan="3">Total Transacted Volume</th>
+                                        <th class="text-center">
+                                            <strong>
+                                                ${{ accumulated_volume|floatformat:2 }}
+                                            </strong>
                                         </th>
-                                        <th></th>
+                                    <th></th>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
                     {% else %}
                         <div class="empty-state">
-                            <h4>No Funding Records</h4>
+                            <h4>No Funding Transactions</h4>
                             <p>
-                                Equity Funding will appear here after the vault
+                                Equity Transactions will appear here after the vault
                                 has been initialized and fundings has been processed.
                             </p>
                         </div>
@@ -549,52 +620,57 @@
                         Profit Trades & Investor Funds DO NOT affect the pool value.
                     </p>
                     {% if pool %}
-                        <div class="account-row">
-                            <span class="account-label">Pool Status</span>
-                            <span class="account-value purple">
-                                Active
-                            </span>
+                        <div class="message notice">
+                            Pool Health
                         </div>
                         <div class="account-row">
-                            <span class="account-label">Date Initialized</span>
+                            <span class="account-label">Genesis</span>
                             <span class="account-value black">
-                                {{ pool.created_at }}
+                                {{ pool.created_at|date:"d M Y" }}
                             </span>
                         </div>
                         <div class="account-row">
-                            <span class="account-label">Last Transfer</span>
-                            <span class="account-value black">
-                                {{ pool.updated_at }}
-                            </span>
-                        </div>
-                        <div class="account-row">
-                            <span class="account-label">Current Available Balance</span>
+                            <span class="account-label">Transfers</span>
                             <span class="account-value green">
-                                ${{ pool.trading_pool_value|default:"0.00"|floatformat:2 }}
+                                $ {{ pool_tranfer_volume|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="account-row">
+                            <span class="account-label">Liquidated</span>
+                            <span class="account-value blue">
+                               $ {{ loss_value|floatformat:2 }}
                             </span>
                         </div>
                         {% if user.is_superuser == True %}
                             <div class="message info">
-                                User: {{ user.username }}! Pool Access: Granted
+                                Pool Access for {{ user.username }}: GRANTED
                             </div>
-                            <div class="message notice">
-                                Before funding pool,check availability of funds transfer from vault.
-                            </div>
-                            <div class="account-actions">
-                                <form action="{% url 'transfer_to_pool' vault.id %}" method="POST">
-                                    {% csrf_token %}
-                                    <div class="form-group" style="margin:auto;">
-                                        <input style="padding: .5rem; margin: .5rem;" type="number" name="amount" step="0.01" min="0.01" placeholder="Amount to add" required>
-                                        <button type="submit" style="background-color: coral;" class="btn btn-transfer">Transfer To Pool</button>
-                                    </div>
-                                </form>
-                            </div>
+                            <form action="{% url 'transfer_to_pool' vault.id %}" method="POST">
+                                {% csrf_token %}
+                                <div class="account-row">
+                                    <span class="account-label">Amount $</span>
+                                    <span>
+                                     <input style="padding: .5rem; margin: auto;"
+                                            type="number"
+                                            name="amount"
+                                            id="reference"
+                                            step="0.01"
+                                            min="0.01"
+                                            placeholder="0.00"
+                                            required
+                                        >
+                                    </span>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-full">
+                                    TRANSFER
+                                </button>
+                            </form>
                         {% else %}
                             <div class="message error">
                                 User: {{ user.username }}! Pool Access: Denied
                             </div>
                             <div class="message warning">
-                                Cannot Transfer to Pool, Please contact Admin.
+                                Cannot Transfer to Pool, Please contact Admin
                             </div>
                         {% endif %}
                     {% else %}
@@ -621,53 +697,47 @@
                 <!-- Pool Table -->
                 <section class="card" style="height: 100%;">
                     <h3>
-                        Trading Pool Transfer History
+                        Trading Pool Liquidity
                     </h3>
                     <p class="description">
-                        Review recent trading pool transfer history of funds from vault.
+                        Trading Pool Liquidity Allocation. Transfers and Liquidations
                     </p>
                     {% if pool_transfer %}
                         <div class="table-wrapper">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
-                                        <th class="text-right">Fund Vault</th>
-                                        <th class="text-right">Fund Pool</th>
-                                        <th class="text-right">Fund Amount</th>
-                                        <th>Transfer Date</th>
+                                        <th>Date</th>
+                                        <th class="text-right">Transfers</th>
+                                        <th class="text-right">Liquidations</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                 {% for display in pool_transfer_display %}
                                     <tr>
                                         <td>
-                                            {{ display.id }}
-                                        </td>
-                                        <td class="text-right">
-                                            ${{ display.vault_id }}
-                                        </td>
-                                        <td class="text-right">
-                                            ${{ display.trading_pool_id }}
+                                            {{ display.transfer_date|date:"d M Y, H:i" }}
                                         </td>
                                         <td class="text-right green">
-                                            <strong>
-                                                ${{ display.amount|floatformat:2 }}
-                                            </strong>
-                                        </td>
-                                        <td>
-                                            {{ display.transfer_date|date:"d M Y, H:i" }}
+                                            $ {{ display.amount|floatformat:2 }}                                        </td>
+                                        <td class="text-right blue">
+                                            {% if liquidations %}
+                                                {% for liquid in liquidations %}
+                                                    -$ {{ liquid.loss_value }}
+                                                {% endfor %}
+                                            {% endif %}
                                         </td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <th colspan="3">Cumulated Pool Volume</th>
-                                        <th class="text-right">
-                                            ${{ pool_tranfer_volume|floatformat:2 }}
+                                        <th colspan="2">Cumulated Pool Volume</th>
+                                        <th class="text-center">
+                                            <strong>
+                                                ${{ pool_tranfer_volume|floatformat:2 }}
+                                            </strong>
                                         </th>
-                                        <th></th>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -690,42 +760,46 @@
                 <!-- Share Card -->
                 <section class="card">
                     <h3>
-                        Allocate Investor Shares
+                        Share Pool
                     </h3>
                     <p class="description">
                         Allocate the available share pool proportionally to eligible
                         investors using their recorded contributions as the allocation
                         basis.
                     </p>
+                    <div class="message notice">
+                        Share Health
+                    </div>
                     <div class="account-row">
-                        <span class="account-label">Current Available Balance</span>
-                        <span class="account-value purple">
+                        <span class="account-label">Genesis</span>
+                        <span class="account-value black" >
+                            {{ share.created_at }}
+                        </span>
+                    </div>
+                    <div class="account-row">
+                        <span class="account-label">Share</span>
+                        <span class="account-value green">
                             ${{ share.share_pool_value|default:"0.00"|floatformat:2 }}
                         </span>
                     </div>
                     <div class="account-row">
-                        <span class="account-label">Contribution Basis</span>
+                        <span class="account-label">Contributions</span>
                         <span class="account-value blue">
                             ${{ contribution_total|default:"0.00"|floatformat:2 }}
                         </span>
                     </div>
-                    <div class="notice">
-                        Allocations are accounting records. This action does not initiate
-                        a bank transfer or confirm that investors have received payment.
-                    </div>
                     {% if share and share.share_pool_value > 0 and contribution_total > 0 %}
                         <form method="post" action="{% url 'investor_share_pool' %}"
-                            onsubmit="return confirm('Allocate the entire available share pool to eligible investors?');">
+                        onsubmit="return confirm('Allocate the entire available share pool to eligible investors?');">
                             {% csrf_token %}
-
                             <button type="submit" class="btn btn-primary btn-full">
-                                Allocate Available Shares
+                                DISTRIBUTE
                             </button>
                         </form>
                     {% elif not share %}
                         <div class="message warning">
-                            The investor share pool has not been created yet. Record a
-                            profitable trade and complete the profit distribution first.
+                            The investor share pool has not been created yet. 
+                            Record a profitable trade to trigger profit distribution logic
                         </div>
                     {% elif contribution_total <= 0 %}
                         <div class="message warning">
@@ -747,10 +821,10 @@
                 <!-- Share Table -->
                 <section class="card" style="height: 100%;">
                     <h3>
-                        Investor Allocation History
+                        Share Pool Allocation
                     </h3>
                     <p class="description">
-                        Review allocation records generated by previous distributions.
+                        Share Pool distribution records calculated by profit disbursment based contribution
                     </p>
                     {% if allocation_display %}
                         <div class="table-wrapper">

@@ -1,4 +1,4 @@
- {% load compress %}
+{% load compress %}
 {% load static %}
 
 <!DOCTYPE html>
@@ -19,7 +19,7 @@
                 color: #333;
             }
             .container {
-                max-width: 1200px;
+                max-width: 1400px;
                 margin: 35px auto;
                 padding: 0 20px;
             }
@@ -77,6 +77,7 @@
                 grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr);
                 gap: 22px;
                 align-items: start;
+                margin: 1rem;
             }
             .card {
                 border: 1px solid #e1e4e8;
@@ -292,8 +293,10 @@
                     <h2>Investor Share Pool</h2>
                     <p>Manage profit allocations and monitor investor distribution records.</p>
                 </div>
-
-                <a href="{% url 'wallet_dashboard' %}" class="btn btn-outline">
+                <a href="{% url 'register_investor' %}" class="btn btn-outline">
+                    Register Investor
+                </a>
+                <a href="{% url 'wallet_dashboard' %}" class="btn btn-secondary">
                     Back to Wallet
                 </a>
             </header>
@@ -316,19 +319,19 @@
             <!-- Summary statistics -->
             <section class="grid-stats">
                 <div class="stat-card">
-                    <div class="stat-label">Available Share Pool</div>
+                    <div class="stat-label">Share Pool</div>
                     <div class="stat-val purple">
                         ${{ share_pool.share_pool_value|default:"0.00"|floatformat:2 }}
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Total Contributions</div>
+                    <div class="stat-label">Contributions</div>
                     <div class="stat-val blue">
                         ${{ contribution_total|default:"0.00"|floatformat:2 }}
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Total Allocations Recorded</div>
+                    <div class="stat-label">Allocations</div>
                     <div class="stat-val green">
                         ${{ allocation_total|default:"0.00"|floatformat:2 }}
                     </div>
@@ -337,10 +340,114 @@
 
             <div class="grid-main">
 
+                <!-- Investor controls -->
+                <section class="card">
+                    <h3>
+                        Manage Investors
+                    </h3>
+                    <p class="description">
+                        Register, Manage, Update and Fund Investors
+                    </p>
+                    {% if investors %}
+                        <div class="account-row">
+                            <span class="account-label">Contibutions</span>
+                            <span class="account-value purple">
+                                ${{ contribution_total|default:"0.00"|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="account-row">
+                            <span class="account-label">Equity</span>
+                            <span class="account-value blue">
+                                ${{ equity|default:"0.00"|floatformat:2 }}
+                            </span>
+                        </div>
+                        <div class="notice">
+                            Select the Profiles button to view investors detailed info
+                        </div>
+                        <a href="#" class="btn btn-outline">
+                                Profiles
+                            </a>
+                    {% else %}
+                        <div class="message warning">
+                            No registered Investors
+                        </div>            
+                        <div class="account-actions">
+                            <a href="{% url 'register_investor' %}" class="btn btn-outline">
+                                Register Investor
+                            </a>
+                        </div>
+                    {% endif %}
+                </section>
+
+                <!-- Investor Details-->
+                <section class="card"> 
+                    <h3>
+                        Investors' Profile
+                    </h3>
+                    <p class="description">
+                        Investors' Personal Information & Investment
+                    </p>
+                    {% if investors %}
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th class="text-right">Email</th>
+                                        <th class="text-right">Phone</th>
+                                        <th class="text-right">Investment</th>
+                                        <th class="text-right">Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for investor in investors %}
+                                        <tr>
+                                            <td>
+                                                {{ investor.investor_name }}
+                                            </td>
+                                            <td class="text-right">
+                                                {{ investor.investor_email }}
+                                            </td>
+                                            <td class="text-right">
+                                                {{ investor.investor_phone }}
+                                            </td>
+                                            <td class="text-right">
+                                                    ${{ investor.investor_investment }}
+                                            </td>
+                                            <td class="text-right">
+                                                {{ investor.join_date|date:"d M Y" }}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <strong>
+                                            <th class="text-center" colspan="5">
+                                                Total Investors {{ investors_count }}
+                                            </th>
+                                        </strong>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <h4>No Investor Profiles</h4>
+                            <p>
+                                Investors profile info will appear here after registration
+                            </p>
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+
+            <div class="grid-main">
+
                 <!-- Allocation controls -->
                 <section class="card">
                     <h3>
-                        Allocate Investor Shares
+                        Allocate Shares
                     </h3>
                     <p class="description">
                         Allocate the available share pool proportionally to eligible
@@ -348,20 +455,16 @@
                         basis.
                     </p>
                     <div class="account-row">
-                        <span class="account-label">Current Available Balance</span>
+                        <span class="account-label">Pool</span>
                         <span class="account-value purple">
                             ${{ share_pool.share_pool_value|default:"0.00"|floatformat:2 }}
                         </span>
                     </div>
                     <div class="account-row">
-                        <span class="account-label">Contribution Basis</span>
+                        <span class="account-label">Shared</span>
                         <span class="account-value blue">
-                            ${{ contribution_total|default:"0.00"|floatformat:2 }}
+                            ${{ allocation_total|default:"0.00"|floatformat:2 }}
                         </span>
-                    </div>
-                    <div class="notice">
-                        Allocations are accounting records. This action does not initiate
-                        a bank transfer or confirm that investors have received payment.
                     </div>
                     {% if share_pool and share_pool.share_pool_value > 0 and contribution_total > 0 %}
                         <form method="post" action="{% url 'investor_share_pool' %}"
@@ -369,7 +472,7 @@
                             {% csrf_token %}
 
                             <button type="submit" class="btn btn-primary btn-full">
-                                Allocate Available Shares
+                                DISTRIBUTE
                             </button>
                         </form>
                     {% elif not share_pool %}
@@ -386,13 +489,12 @@
                         <div class="message info">
                             There is currently no balance available for allocation.
                         </div>
+                        <div class="account-actions">
+                            <a href="#" class="btn btn-outline">
+                                Allocations
+                            </a>
+                        </div>
                     {% endif %}
-
-                    <div class="account-actions">
-                        <a href="{% url 'register_investor' %}" class="btn btn-outline">
-                            Register Investor
-                        </a>
-                    </div>
                 </section>
 
                 <!-- Allocation history -->
@@ -428,12 +530,10 @@
                                                 ${{ allocation.total_contributions_basis|floatformat:2 }}
                                             </td>
                                             <td class="text-right green">
-                                                <strong>
-                                                    ${{ allocation.amount|floatformat:2 }}
-                                                </strong>
+                                                ${{ allocation.amount|floatformat:2 }}
                                             </td>
                                             <td>
-                                                {{ allocation.distribution_date|date:"d M Y, H:i" }}
+                                                {{ allocation.distribution_date|date:"d M Y" }}
                                             </td>
                                         </tr>
                                     {% endfor %}

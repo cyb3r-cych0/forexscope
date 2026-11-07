@@ -1,24 +1,21 @@
 import json
+from datetime import timedelta
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import View
 from django.utils import timezone
-from datetime import timedelta
+from django.db import transaction, models
 from django.db.models import Sum, Count
-from django.db.models.functions import TruncDate
-from django.db.models.functions import TruncMonth
-from django.db import transaction
-from django.contrib.auth.decorators import login_required
+from django.db.models.functions import TruncDate, TruncMonth
 from django.views.decorators.http import require_POST
 from decimal import Decimal, InvalidOperation
 from .forms import InvestorInfoForm
-from .models import (
-                    VaultEquity, TradingPool, PoolTransfer, 
+from .models import (VaultEquity, TradingPool, PoolTransfer, VaultTransaction,
                     ProfitTrade, LossTrade, SharePoolDistribution, 
-                    InvestorContribution, InvestorInfo, InvestorSharePool, InvestorShareAllocation
-                )
+                    InvestorContribution, InvestorInfo, InvestorSharePool, InvestorShareAllocation)
 
 
 def home(request):
@@ -105,8 +102,6 @@ def wallet_dashboard(request):
     )
 
     recent_activity = recent_activity[:10]
-
-
     
     # --------------------------------------------------
     # Monthly profit, loss, and net P&L
@@ -444,6 +439,138 @@ def wallet_dashboard(request):
 
 
 @login_required
+def vault_pool_share_view(request):
+    user = request.user
+
+    vault = VaultEquity.objects.filter(user=request.user).first()
+    vault_transactions = (VaultTransaction.objects.filter(vault__user=request.user).select_related("vault").order_by("-transaction_date")[:6])
+    pool = TradingPool.objects.filter(user=request.user).first()
+    share = InvestorSharePool.objects.filter(user=request.user).first()
+    pool_transfer = PoolTransfer.objects.all()
+    pool_tranfer_volume = pool_transfer.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    pool_transfer_display = pool_transfer[:6]
+    losses = LossTrade.objects.all()
+    loss_value = losses.aggregate(total=Sum("loss_value"))["total"] or Decimal("0.00")
+    liquidations = losses.order_by('id')[:6]
+
+    # Only allow allocation through POST.
+    if request.method == "POST":
+        if vault is None:
+            messages.error(
+                request,
+                "The vault pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        if pool is None:
+            messages.error(
+                request,
+                "The vault pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        if share is None:
+            messages.error(
+                request,
+                "The investor share pool does not exist yet."
+            )
+            return redirect("vault_pool_share")
+
+        if pool_transfer is None:
+            messages.error(
+                request,
+                "The pool transfer history does not exist yet."
+            )
+            return redirect("vault_pool_share")
+        
+        try:
+            allocations = share.distribute_to_investors()
+            print(allocations)
+            messages.success(
+                request,
+                f"Allocation completed. "
+                f"{len(allocations)} investor allocation record(s) created."
+            )
+            return redirect("investor_share_pool")
+
+        except ValidationError as exc:
+            print(exc.messages)
+            for error in exc.messages:
+                messages.error(request, error)
+
+            return redirect("vault_pool_share")
+
+    # vault transaction statistics
+    vault_transaction_stats = VaultTransaction.objects.filter(vault__user=request.user).aggregate(
+        total_funding=Sum(
+            "amount",
+            filter=models.Q(transaction_type="FUNDING"),
+        ),
+        total_withdrawals=Sum(
+            "amount",
+            filter=models.Q(transaction_type="WITHDRAWAL"),
+        ),
+    )
+    total_vault_funding = (vault_transaction_stats[
+        "total_funding"] or Decimal("0.00")
+    )
+    total_vault_withdrawals = (vault_transaction_stats[
+        "total_withdrawals"] or Decimal("0.00")
+    )
+    accumulated_volume = float(total_vault_funding + total_vault_withdrawals)
+
+    # Only show contributions belonging to this user's vault.
+    contributions = InvestorContribution.objects.filter(
+        vault__user=request.user
+    )
+    contribution_total = (
+        contributions.aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+
+    # Show allocation records for this user's share pool only.
+    allocations = InvestorShareAllocation.objects.filter(
+        share_pool__user=request.user
+    ).select_related(
+        "investor",
+        "share_pool",
+    ).order_by(
+        "-distribution_date"
+    )
+    allocation_total = (
+        allocations.aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+    allocation_display = InvestorShareAllocation.objects.filter(
+        share_pool__user=request.user
+    ).select_related(
+        "investor",
+        "share_pool",
+    ).order_by("-distribution_date")[:6]
+
+    context = {
+        "user": user,
+        "share": share,
+        "vault": vault,
+        "vault_transactions": vault_transactions,
+        "total_vault_funding": total_vault_funding,
+        "total_vault_withdrawals": total_vault_withdrawals,
+        "accumulated_volume": accumulated_volume,
+        "pool": pool,
+        "pool_transfer": pool_transfer,
+        "pool_tranfer_volume": pool_tranfer_volume,
+        "pool_transfer_display": pool_transfer_display,
+        "loss_value": loss_value,
+        "liquidations": liquidations,
+        "contribution_total": contribution_total,
+        "allocation_total": allocation_total,
+        "allocations": allocations,
+        "allocation_display": allocation_display
+    }
+    return render(request, "funds/vault_pool_share.html", context)
+
+
+@login_required
 @require_POST
 def record_trade_view(request, pool_id):
     result_type = request.POST.get("result_type", "").strip().upper()
@@ -548,8 +675,60 @@ def create_wallet_resource(request, resource):
     else:
         messages.info(request, f"You already have a {label}.")
 
-    return redirect('wallet_dashboard')
+    return redirect('vault_pool_share')
 
+
+@login_required
+@require_POST
+def vault_transaction_view(request, vault_id):
+
+    vault = get_object_or_404(
+        VaultEquity,
+        pk=vault_id,
+        user=request.user,
+    )
+
+    transaction_type = request.POST.get("transaction_type")
+    amount = request.POST.get("amount")
+    reference = request.POST.get("reference", "")
+    description = request.POST.get("description", "")
+
+    try:
+        if transaction_type == "FUNDING":
+            record = vault.record_funding(
+                amount=amount,
+                reference=reference,
+                description=description,
+            )
+
+            messages.success(
+                request,
+                f"Funding of ${record.amount:,.2f} recorded successfully."
+            )
+
+        elif transaction_type == "WITHDRAWAL":
+            record = vault.record_withdrawal(
+                amount=amount,
+                reference=reference,
+                description=description,
+            )
+
+            messages.success(
+                request,
+                f"Withdrawal of ${record.amount:,.2f} recorded successfully."
+            )
+
+        else:
+            messages.error(
+                request,
+                "Invalid vault transaction type."
+            )
+
+    except ValidationError as exc:
+        for error in exc.messages:
+            messages.error(request, error)
+
+    return redirect("vault_pool_share")
 
 @login_required
 @require_POST
@@ -597,7 +776,7 @@ def transfer_to_pool_view(request, vault_id):
             request,
             "Create your trading pool before transferring funds.",
         )
-        return redirect("wallet_dashboard")
+        return redirect("vault_pool_share")
 
     try:
         amount = Decimal(request.POST.get("amount", "").strip())
@@ -615,7 +794,7 @@ def transfer_to_pool_view(request, vault_id):
         for error in getattr(exc, "messages", [str(exc)]):
             messages.error(request, error)
 
-    return redirect("wallet_dashboard")
+    return redirect("vault_pool_share")
 
 
 class RegisterInvestor(View):
@@ -704,9 +883,9 @@ class RegisterInvestor(View):
 
 @login_required
 def investor_share_pool_view(request):
-    share_pool = InvestorSharePool.objects.filter(
-        user=request.user
-    ).first()
+    investors = InvestorInfo.objects.all()
+    investors_count = investors.count()
+    share_pool = InvestorSharePool.objects.filter(user=request.user).first()
 
     # Only allow allocation through POST.
     if request.method == "POST":
@@ -749,111 +928,16 @@ def investor_share_pool_view(request):
         ["total"] or Decimal("0.00")
     )
 
+    # equity(contributions + distributions)
+    equity = float(contribution_total + allocation_total)
+
     context = {
+        "investors": investors,
+        "investors_count": investors_count,
         "share_pool": share_pool,
         "contribution_total": contribution_total,
         "allocation_total": allocation_total,
         "allocations": allocations,
+        "equity": equity
     }
     return render(request, "investors/investor_share_pool.html", context)
-
-
-@login_required
-def vault_pool_share_view(request):
-    user = request.user
-
-    vault = VaultEquity.objects.filter(user=request.user).first()
-    pool = TradingPool.objects.filter(user=request.user).first()
-    share = InvestorSharePool.objects.filter(user=request.user).first()
-    pool_transfer = PoolTransfer.objects.all()
-    pool_tranfer_volume = pool_transfer.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    pool_transfer_display = pool_transfer[:6]
-
-    # Only allow allocation through POST.
-    if request.method == "POST":
-        if vault is None:
-            messages.error(
-                request,
-                "The vault pool does not exist yet."
-            )
-            return redirect("vault_pool_share")
-        
-        if pool is None:
-            messages.error(
-                request,
-                "The vault pool does not exist yet."
-            )
-            return redirect("vault_pool_share")
-        
-        if share is None:
-            messages.error(
-                request,
-                "The investor share pool does not exist yet."
-            )
-            return redirect("vault_pool_share")
-
-        if pool_transfer is None:
-            messages.error(
-                request,
-                "The pool transfer history does not exist yet."
-            )
-            return redirect("vault_pool_share")
-        
-        try:
-            allocations = share.distribute_to_investors()
-            messages.success(
-                request,
-                f"Allocation completed. "
-                f"{len(allocations)} investor allocation record(s) created."
-            )
-
-        except ValidationError as exc:
-            for error in exc.messages:
-                messages.error(request, error)
-
-        return redirect("vault_pool_share")
-
-    # Only show contributions belonging to this user's vault.
-    contributions = InvestorContribution.objects.filter(
-        vault__user=request.user
-    )
-
-    contribution_total = (
-        contributions.aggregate(total=Sum("amount"))["total"]
-        or Decimal("0.00")
-    )
-
-    # Show allocation records for this user's share pool only.
-    allocations = InvestorShareAllocation.objects.filter(
-        share_pool__user=request.user
-    ).select_related(
-        "investor",
-        "share_pool",
-    ).order_by("-distribution_date")
-
-    allocation_total = (
-        allocations.aggregate(total=Sum("amount"))["total"]
-        or Decimal("0.00")
-    )
-
-    allocation_display = InvestorShareAllocation.objects.filter(
-        share_pool__user=request.user
-    ).select_related(
-        "investor",
-        "share_pool",
-    ).order_by("-distribution_date")[:6]
-
-    context = {
-        "user": user,
-        "share": share,
-        "vault": vault,
-        "pool": pool,
-        "pool_transfer": pool_transfer,
-        "pool_tranfer_volume": pool_tranfer_volume,
-        "pool_transfer_display": pool_transfer_display,
-        "contribution_total": contribution_total,
-        "allocation_total": allocation_total,
-        "allocations": allocations,
-        "allocation_display": allocation_display
-    }
-    return render(request, "funds/vault_pool_share.html", context)

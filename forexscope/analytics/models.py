@@ -1,12 +1,9 @@
-from decimal import Decimal
-
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Q
-from decimal import Decimal, ROUND_DOWN
-from django.db.models import Sum
-
+from django.db.models import Q, Sum
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
+from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 
 
 class VaultEquity(models.Model):
@@ -82,6 +79,8 @@ class VaultEquity(models.Model):
 
         self.refresh_from_db()
 
+        return self.record_funding(amount)
+
     def transfer_to_trading_pool(self, pool, amount):
         """Transfer company equity into a trading pool."""
 
@@ -139,11 +138,133 @@ class VaultEquity(models.Model):
         self.refresh_from_db()
         pool.refresh_from_db()
 
+    def record_funding(self, amount, reference="", description=""):
+        return self._record_vault_transaction(
+            amount=amount,
+            transaction_type=VaultTransaction.TransactionType.FUNDING,
+            reference=reference,
+            description=description,
+        )
+
+    def record_withdrawal(self, amount, reference="", description=""):
+        return self._record_vault_transaction(
+            amount=amount,
+            transaction_type=VaultTransaction.TransactionType.WITHDRAWAL,
+            reference=reference,
+            description=description,
+        )
+
+    def _record_vault_transaction(self,amount,transaction_type,reference="",description="",):
+        try:
+            amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValidationError("Enter a valid transaction amount.")
+
+        if amount <= Decimal("0.00"):
+            raise ValidationError("Transaction amount must be greater than zero.")
+
+        with transaction.atomic():
+            vault = VaultEquity.objects.select_for_update().get(
+                pk=self.pk,
+                user=self.user,
+            )
+
+            if transaction_type == VaultTransaction.TransactionType.FUNDING:
+                vault.vault_equity_value += amount
+
+            elif transaction_type == VaultTransaction.TransactionType.WITHDRAWAL:
+                if vault.vault_equity_value < amount:
+                    raise ValidationError(
+                        "Insufficient vault balance for this withdrawal."
+                    )
+
+                vault.vault_equity_value -= amount
+
+            else:
+                raise ValidationError("Invalid vault transaction type.")
+
+            vault.save(update_fields=["vault_equity_value", "updated_at"])
+
+            transaction_record = VaultTransaction.objects.create(
+                vault=vault,
+                transaction_type=transaction_type,
+                amount=amount,
+                balance_after=vault.vault_equity_value,
+                reference=reference.strip(),
+                description=description.strip(),
+            )
+
+            self.refresh_from_db()
+
+        return transaction_record
+
     def __str__(self):
         return (
             f"{self.user}"
             f"{self.vault_equity_value}"
         )
+
+
+class VaultTransaction(models.Model):
+
+    class TransactionType(models.TextChoices):
+        FUNDING = "FUNDING", "Funding"
+        WITHDRAWAL = "WITHDRAWAL", "Withdrawal"
+
+    vault = models.ForeignKey(
+        VaultEquity,
+        on_delete=models.PROTECT,
+        related_name="transactions",
+    )
+
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TransactionType.choices,
+    )
+
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+
+    balance_after = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    reference = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    description = models.TextField(
+        blank=True,
+    )
+
+    transaction_date = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ["-transaction_date"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="vault_transaction_amount_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(balance_after__gte=0),
+                name="vault_transaction_balance_nonnegative",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.transaction_type} - "
+            f"{self.amount} - Vault {self.vault_id}"
+        )
+
 
 
 class TradingPool(models.Model):
@@ -401,7 +522,6 @@ class PoolTransfer(models.Model):
 
     def __str__(self):
         return f"Transfer of {self.amount} to pool #{self.trading_pool_id}"
-
 
 
 class ProfitTrade(models.Model):

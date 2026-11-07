@@ -7,9 +7,9 @@ urlpatterns = [
     path('pool/<int:pool_id>/record-trade/', views.record_trade_view, name='record_trade'),
     path('wallet/create/<str:resource>/', views.create_wallet_resource, name='create_wallet_resource'),
     path('vault/<int:vault_id>/add-equity/', views.add_equity_view, name='add_equity'),
+    path("vault/<int:vault_id>/transaction/",views.vault_transaction_view,name="vault_transaction",),
     path('vault/<int:vault_id>/transfer/', views.transfer_to_pool_view, name='transfer_to_pool'),
     path('registration/register_investor/',views.RegisterInvestor.as_view(),name='register_investor'),
     path("investors/investor-share-pool/", views.investor_share_pool_view, name="investor_share_pool",),
     path("funds/vault_pool_share/", views.vault_pool_share_view, name="vault_pool_share",),
-    
 ]

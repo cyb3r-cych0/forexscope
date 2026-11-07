@@ -716,7 +716,7 @@
                                 {% for display in pool_transfer_display %}
                                     <tr>
                                         <td>
-                                            {{ display.transfer_date|date:"d M Y, H:i" }}
+                                            {{ display.transfer_date|date:"d M Y" }}
                                         </td>
                                         <td class="text-right green">
                                             $ {{ display.amount|floatformat:2 }}                                        </td>
@@ -773,7 +773,7 @@
                     <div class="account-row">
                         <span class="account-label">Genesis</span>
                         <span class="account-value black" >
-                            {{ share.created_at }}
+                            {{ share.created_at|date:"d M Y" }}
                         </span>
                     </div>
                     <div class="account-row">
@@ -856,7 +856,7 @@
                                                 </strong>
                                             </td>
                                             <td>
-                                                {{ display.distribution_date|date:"d M Y, H:i" }}
+                                                {{ display.distribution_date|date:"d M Y" }}
                                             </td>
                                         </tr>
                                     {% endfor %}

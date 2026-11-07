@@ -30,6 +30,368 @@ def wallet_dashboard(request):
     vault = VaultEquity.objects.filter(user=request.user).first()
     pool = TradingPool.objects.filter(user=request.user).first()
     share = InvestorSharePool.objects.filter(user=request.user).first()
+    profits = ProfitTrade.objects.filter(user=request.user)
+    losses = LossTrade.objects.filter(user=request.user)
+
+    contributions = InvestorContribution.objects.filter(
+        vault__user=request.user
+    )
+
+    # Supported dashboard periods
+    period_options = {
+        "7": 7,
+        "30": 30,
+        "90": 90,
+        "all": None,
+    }
+
+    selected_period = request.GET.get("period", "30")
+
+    if selected_period not in period_options:
+        selected_period = "30"
+
+    period_days = period_options[selected_period]
+
+    # Start with the current user's trade records.
+    profits = ProfitTrade.objects.filter(user=request.user)
+    losses = LossTrade.objects.filter(user=request.user)
+
+    # Apply the selected date range to trading analytics.
+    if period_days is not None:
+        start_date = timezone.localdate() - timedelta(
+            days=period_days - 1
+        )
+
+        profits = profits.filter(
+            profit_trade_date__date__gte=start_date
+        )
+
+        losses = losses.filter(
+            loss_trade_date__date__gte=start_date
+        )
+
+    # Recent profit entries
+    recent_activity = []
+
+    for trade in profits.order_by("-profit_trade_date")[:10]:
+        recent_activity.append({
+            "date": trade.profit_trade_date,
+            "type": "PROFIT",
+            "asset": trade.utility_traded,
+            "direction": trade.trade_direction,
+            "amount": trade.profit_value,
+            "description": trade.description,
+        })
+
+    # Recent loss entries
+    for trade in losses.order_by("-loss_trade_date")[:10]:
+        recent_activity.append({
+            "date": trade.loss_trade_date,
+            "type": "LOSS",
+            "asset": trade.utility_traded,
+            "direction": trade.trade_direction,
+            "amount": trade.loss_value,
+            "description": trade.description,
+        })
+
+    # Combine both record types and retain the latest 10.
+    recent_activity.sort(
+        key=lambda item: item["date"],
+        reverse=True,
+    )
+
+    recent_activity = recent_activity[:10]
+    
+    # --------------------------------------------------
+    # Monthly profit, loss, and net P&L
+    # Uses the currently selected date range.
+    # --------------------------------------------------
+    monthly_profit_rows = (
+        profits
+        .annotate(month=TruncMonth("profit_trade_date"))
+        .values("month")
+        .annotate(total=Sum("profit_value"))
+        .order_by("month")
+    )
+
+    monthly_loss_rows = (
+        losses
+        .annotate(month=TruncMonth("loss_trade_date"))
+        .values("month")
+        .annotate(total=Sum("loss_value"))
+        .order_by("month")
+    )
+
+    monthly_data = {}
+
+    for row in monthly_profit_rows:
+        if row["month"]:
+            month_key = row["month"].strftime("%Y-%m")
+            monthly_data.setdefault(
+                month_key,
+                {"profit": 0.0, "loss": 0.0},
+            )
+            monthly_data[month_key]["profit"] = float(
+                row["total"] or 0
+            )
+
+    for row in monthly_loss_rows:
+        if row["month"]:
+            month_key = row["month"].strftime("%Y-%m")
+            monthly_data.setdefault(
+                month_key,
+                {"profit": 0.0, "loss": 0.0},
+            )
+            monthly_data[month_key]["loss"] = float(
+                row["total"] or 0
+            )
+
+    monthly_labels = sorted(monthly_data.keys())
+
+    monthly_profits = [
+        round(monthly_data[month]["profit"], 2)
+        for month in monthly_labels
+    ]
+
+    monthly_losses = [
+        round(monthly_data[month]["loss"], 2)
+        for month in monthly_labels
+    ]
+
+    monthly_net = [
+        round(
+            monthly_data[month]["profit"]
+            - monthly_data[month]["loss"],
+            2,
+        )
+        for month in monthly_labels
+    ]
+
+
+    # --------------------------------------------------
+    # 2. Main trading statistics
+    # --------------------------------------------------
+    profit_stats = profits.aggregate(
+        total=Sum("profit_value"),
+        count=Count("id"),
+    )
+    loss_stats = losses.aggregate(
+        total=Sum("loss_value"),
+        count=Count("id"),
+    )
+
+    gross_profit = profit_stats["total"] or Decimal("0.00")
+    gross_loss = loss_stats["total"] or Decimal("0.00")
+
+    win_count = profit_stats["count"] or 0
+    loss_count = loss_stats["count"] or 0
+    total_trades = win_count + loss_count
+
+    net_profit = gross_profit - gross_loss
+
+    win_rate = (
+        (win_count / total_trades) * 100
+        if total_trades else 0
+    )
+
+    average_profit = (
+        gross_profit / win_count
+        if win_count else Decimal("0.00")
+    )
+
+    average_loss = (
+        gross_loss / loss_count
+        if loss_count else Decimal("0.00")
+    )
+
+    profit_loss_ratio = (
+        average_profit / average_loss
+        if average_loss > 0 else Decimal("0.00")
+    )
+
+    # --------------------------------------------------
+    # 3. Investor contribution statistics
+    # --------------------------------------------------
+    investor_stats = contributions.aggregate(
+        total=Sum("amount"),
+        count=Count("investor", distinct=True),
+    )
+
+    gross_investment = (
+        investor_stats["total"] or Decimal("0.00")
+    )
+    investors_count = investor_stats["count"] or 0
+
+    # --------------------------------------------------
+    # 4. Profit distribution statistics
+    # --------------------------------------------------
+    distributions = SharePoolDistribution.objects.filter(
+        profit__user=request.user
+    )
+
+    distribution_stats = distributions.aggregate(
+        reinvested=Sum("reinvestment_amount"),
+        allocated=Sum("investor_amount"),
+    )
+
+    total_reinvested = (
+        distribution_stats["reinvested"] or Decimal("0.00")
+    )
+    total_investor_allocated = (
+        distribution_stats["allocated"] or Decimal("0.00")
+    )
+
+    # --------------------------------------------------
+    # 5. Daily profit and loss for the line chart
+    # --------------------------------------------------
+    # daily_profits = (
+    #     profits.annotate(day=TruncDate("profit_trade_date"))
+    #     .values("day")
+    #     .annotate(total=Sum("profit_value"))
+    #     .order_by("day")
+    # )
+
+    # daily_losses = (
+    #     losses.annotate(day=TruncDate("loss_trade_date"))
+    #     .values("day")
+    #     .annotate(total=Sum("loss_value"))
+    #     .order_by("day")
+    # )
+
+    # daily_data = {}
+
+    # for row in daily_profits:
+    #     if row["day"]:
+    #         daily_data.setdefault(
+    #             row["day"].isoformat(),
+    #             {"profit": 0.0, "loss": 0.0},
+    #         )
+    #         daily_data[row["day"].isoformat()]["profit"] = float(
+    #             row["total"] or 0
+    #         )
+
+    # for row in daily_losses:
+    #     if row["day"]:
+    #         daily_data.setdefault(
+    #             row["day"].isoformat(),
+    #             {"profit": 0.0, "loss": 0.0},
+    #         )
+    #         daily_data[row["day"].isoformat()]["loss"] = float(
+    #             row["total"] or 0
+    #         )
+
+    # sorted_days = sorted(daily_data.keys())
+
+    # cumulative_net = 0.0
+    # cumulative_values = []
+    # daily_profit_values = []
+    # daily_loss_values = []
+    # daily_net_values = []
+
+    # for day in sorted_days:
+    #     profit_value = daily_data[day]["profit"]
+    #     loss_value = daily_data[day]["loss"]
+    #     net_value = profit_value - loss_value
+
+    #     cumulative_net += net_value
+
+    #     daily_profit_values.append(profit_value)
+    #     daily_loss_values.append(loss_value)
+    #     daily_net_values.append(net_value)
+    #     cumulative_values.append(round(cumulative_net, 2))
+
+    # --------------------------------------------------
+    # 6. Profit and loss by asset
+    # --------------------------------------------------
+    # asset_profits = (
+    #     profits.values("utility_traded")
+    #     .annotate(total=Sum("profit_value"))
+    # )
+
+    # asset_losses = (
+    #     losses.values("utility_traded")
+    #     .annotate(total=Sum("loss_value"))
+    # )
+
+    # asset_data = {}
+
+    # for row in asset_profits:
+    #     asset = row["utility_traded"] or "UNKNOWN"
+    #     asset_data.setdefault(
+    #         asset, {"profit": 0.0, "loss": 0.0}
+    #     )
+    #     asset_data[asset]["profit"] = float(row["total"] or 0)
+
+    # for row in asset_losses:
+    #     asset = row["utility_traded"] or "UNKNOWN"
+    #     asset_data.setdefault(
+    #         asset, {"profit": 0.0, "loss": 0.0}
+    #     )
+    #     asset_data[asset]["loss"] = float(row["total"] or 0)
+
+    # --------------------------------------------------
+    # 8. Account balance comparison
+    # --------------------------------------------------
+    account_labels = [
+        "Vault Equity",
+        "Trading Pool",
+        "Available Share Pool",
+    ]
+
+    account_values = [
+        float(vault.vault_equity_value) if vault else 0.0,
+        float(pool.trading_pool_value) if pool else 0.0,
+        float(share.share_pool_value) if share else 0.0,
+    ]
+
+    # --------------------------------------------------
+    # 10. Dashboard context
+    # --------------------------------------------------
+    context = {
+        "vault": vault,
+        "pool": pool,
+        "share": share,
+        "gross_investment": gross_investment,
+        "investors_count": investors_count,
+        "total_reinvested": total_reinvested,
+        "total_investor_allocated": total_investor_allocated,
+        "selected_period": selected_period,
+        "period_options": [
+            {"value": "7", "label": "Last 7 days"},
+            {"value": "30", "label": "Last 30 days"},
+            {"value": "90", "label": "Last 90 days"},
+            {"value": "all", "label": "All time"},
+        ],
+        "stats": {
+            "total_trades": total_trades,
+            "win_rate": round(win_rate, 2),
+            "profit_loss_ratio": round(profit_loss_ratio, 2),
+            "net_profit": net_profit,
+            "gross_profit": gross_profit,
+            "gross_loss": gross_loss,
+            "average_profit": average_profit,
+            "average_loss": average_loss,
+        },
+        "recent_activity": recent_activity,
+        "monthly": {
+            "labels": monthly_labels,
+            "profits": monthly_profits,
+            "losses": monthly_losses,
+            "net": monthly_net,
+        },
+    }
+
+    return render(request, "wallet_dashboard.html", context)
+
+
+@login_required
+def stats_dashboard(request):
+    # --------------------------------------------------
+    # 1. Current user's accounts
+    # --------------------------------------------------
+    vault = VaultEquity.objects.filter(user=request.user).first()
+    pool = TradingPool.objects.filter(user=request.user).first()
+    share = InvestorSharePool.objects.filter(user=request.user).first()
 
     profits = ProfitTrade.objects.filter(user=request.user)
     losses = LossTrade.objects.filter(user=request.user)
@@ -435,7 +797,8 @@ def wallet_dashboard(request):
         },
     }
 
-    return render(request, "wallet_dashboard.html", context)
+    return render(request, "analytics/stats_dashboard.html", context)
+
 
 
 @login_required
